@@ -6,15 +6,17 @@
 #include "visited_set.h"
 #include "search_queue.h"
 
-
+/*
+ * 存储搜索的缓存数据，主体是一个缓存对象池
+ * */
 
 namespace ANNS {
 
     struct SearchCache {
-        SearchQueue search_queue;
-        VisitedSet visited_set;
-        std::vector<Candidate> expanded_list;
-        std::vector<float> occlude_factor;
+        SearchQueue search_queue;   // 待处理的候选节点
+        VisitedSet visited_set;     // 已访问节点
+        std::vector<Candidate> expanded_list;   // 扩展的节点
+        std::vector<float> occlude_factor;  // 遮挡因子，用于优化策略
 
         SearchCache(IdxType visited_set_size, int32_t search_queue_capacity) {
             search_queue.reserve(search_queue_capacity);
@@ -49,7 +51,7 @@ namespace ANNS {
             ~SearchCacheList() = default;
 
         private:
-            std::deque<std::shared_ptr<SearchCache>> pool;
+            std::deque<std::shared_ptr<SearchCache>> pool;  // 缓存池
             std::mutex pool_guard;
             IdxType _visited_set_size;
             int32_t _search_queue_capacity;

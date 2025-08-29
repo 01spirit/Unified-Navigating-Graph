@@ -25,9 +25,10 @@ namespace ANNS {
     // insert a candidate
     void SearchQueue::insert(IdxType id, float distance) {
         Candidate new_candidate(id, distance);
-        if (_size == _capacity && _data[_size - 1] < new_candidate)
+        if (_size == _capacity && _data[_size - 1] < new_candidate) // 无法淘汰其他候选向量，不用插入
             return;
 
+        // 确保按大小顺序插入队列
         // binary search
         int32_t lo = 0, hi = _size;
         while (lo < hi) {
@@ -48,7 +49,7 @@ namespace ANNS {
         // update size and currently unexpanded candidate
         if (_size < _capacity)
             _size++;
-        if (lo < _cur_unexpanded)
+        if (lo < _cur_unexpanded)   // 更新未扩展向量的位置
             _cur_unexpanded = lo;
     }
 

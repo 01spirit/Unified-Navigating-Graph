@@ -63,7 +63,7 @@ namespace ANNS {
             void load_from_file(const std::string& bin_file, const std::string& label_file, IdxType max_num_points);
             void write_to_file(const std::string& bin_file, const std::string& label_file);
 
-            // reorder the vector data
+            // reorder the vector data  按照给定
             void reorder_data(const std::vector<IdxType>& new_to_old_ids);
 
             // get statistics
@@ -79,7 +79,7 @@ namespace ANNS {
                 for (size_t d = 0; d < prefetch_byte_num; d += 64) _mm_prefetch((const char *)(vecs + idx * dim) + d, _MM_HINT_T0);
             }
 
-            // obtain a point cloest to the center
+            // obtain a point cloest to the center  找出最接近几何中心的向量，作为图索引的入口
             IdxType choose_medoid(uint32_t num_threads, std::shared_ptr<DistanceHandler> distance_handler);
 
             // clean

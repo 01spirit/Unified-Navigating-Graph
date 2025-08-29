@@ -14,13 +14,13 @@ namespace ANNS {
     }
 
 
-    // insert a new label set into the trie tree, increase the group size
+    // insert a new label set into the trie tree, increase the group size   每次插入一个向量对应的标签集，找到该向量对应的 group
     IdxType TrieIndex::insert(const std::vector<LabelType>& label_set, IdxType& new_label_set_id) {
         std::shared_ptr<TrieNode> cur = _root;
-        for (const LabelType label : label_set) {
+        for (const LabelType label : label_set) {   // 遍历所有标签
 
             // create a new node
-            if (cur->children.find(label) == cur->children.end()) {
+            if (cur->children.find(label) == cur->children.end()) { // 子节点中不存在该标签，新建一个子节点
                 cur->children[label] = std::make_shared<TrieNode>(label, cur);
 
                 // update max label id and label_to_nodes
@@ -33,9 +33,9 @@ namespace ANNS {
             cur = cur->children[label];
         }
         
-        // set the group_id and group_size
+        // set the group_id and group_size  到达终端节点，更新 group 信息
         if (cur->group_id == 0) {
-            cur->group_id = new_label_set_id++;
+            cur->group_id = new_label_set_id++; // 一并修改 new_label_set_id
             cur->label_set_size = label_set.size();
             cur->group_size = 1;
         } else {
@@ -70,7 +70,7 @@ namespace ANNS {
         // find the existing node for the input label set
         std::shared_ptr<TrieNode> avoided_node = nullptr;
         if (avoid_self)
-            avoided_node = find_exact_match(label_set);        
+            avoided_node = find_exact_match(label_set); // 排除精确匹配的终端节点
         std::queue<std::shared_ptr<TrieNode>> q;
 
         // if the label set is empty, find all children of the root
@@ -80,6 +80,7 @@ namespace ANNS {
         } else {
 
             // if need containing the input label set, obtain candidate nodes for the last label
+            // 超级是否需要完全包含标签集合，不需要的话可以返回包含标签子集的超集
             if (need_containment) {
                 for (auto node : _label_to_nodes[label_set[label_set.size()-1]])
                     if (examine_containment(label_set, node))
@@ -95,17 +96,18 @@ namespace ANNS {
         }
 
         // search in the trie tree to find the candidate super sets
+        // 广度优先搜索，找到所有超集入口终端节点
         std::set<IdxType> group_ids;
         while (!q.empty()) {
             auto cur = q.front();
             q.pop();
 
             // add to candidates if it is a terminal node
-            if (cur->group_id > 0 && cur != avoided_node && group_ids.find(cur->group_id) == group_ids.end()) {
+            if (cur->group_id > 0 && cur != avoided_node && group_ids.find(cur->group_id) == group_ids.end()) { // 新的终端节点，存入结果集
                 group_ids.insert(cur->group_id);
                 super_set_entrances.push_back(cur);
             } else {
-                for (const auto& child : cur->children)
+                for (const auto& child : cur->children) // 不是终端节点或不满足条件，把其子节点入队列，等待处理
                     q.push(child.second);
             }
         }
@@ -116,7 +118,8 @@ namespace ANNS {
     bool TrieIndex::examine_smallest(const std::vector<LabelType>& label_set, 
                                      const std::shared_ptr<TrieNode>& node) const {             
         auto cur = node->parent;
-        while (cur != nullptr && cur->label >= label_set[0]) {
+        while (cur != nullptr && cur->label >= label_set[0]) {  // 若父节点的标签不在标签集合的范围内，直接返回 true
+            // 若某个父节点的标签还存在于标签集合中，表明 node 不是该标签集合对应的最小节点，最小的在他上面
             if (std::binary_search(label_set.begin(), label_set.end(), cur->label))
                 return false;
             cur = cur->parent;
@@ -129,10 +132,10 @@ namespace ANNS {
     bool TrieIndex::examine_containment(const std::vector<LabelType>& label_set, 
                                       const std::shared_ptr<TrieNode>& node) const {
         auto cur = node->parent;
-        for (int64_t i = label_set.size()-2; i>=0; --i) {
-            while (cur->label > label_set[i] && cur->parent != nullptr)
+        for (int64_t i = label_set.size()-2; i>=0; --i) {    // 假设最后一个标签在 node 上，从父节点开始检查
+            while (cur->label > label_set[i] && cur->parent != nullptr) // 过滤掉两个待比较标签之间的无关标签的节点
                 cur = cur->parent;
-            if (cur->parent == nullptr || cur->label != label_set[i])
+            if (cur->parent == nullptr || cur->label != label_set[i])   // 检查过滤后的第一个节点标签是否相等，若不相等，说明不是完全包含的关系
                 return false;
         }
         return true;
@@ -231,9 +234,9 @@ namespace ANNS {
     float TrieIndex::get_index_size() {
         float index_size = 0;
         for (const auto& nodes : _label_to_nodes) {
-            index_size += nodes.size() * ( sizeof(TrieNode) + sizeof(std::shared_ptr<TrieNode>) );
+            index_size += nodes.size() * ( sizeof(TrieNode) + sizeof(std::shared_ptr<TrieNode>) );  // 该标签对应的所有节点及其指针的内存占用
             for (const auto& node : nodes)
-                index_size += node->children.size() * ( sizeof(LabelType) + sizeof(std::shared_ptr<TrieNode>) );
+                index_size += node->children.size() * ( sizeof(LabelType) + sizeof(std::shared_ptr<TrieNode>) );    // 每个子节点及其指针
         }
         return index_size;
     }

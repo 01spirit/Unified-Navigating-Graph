@@ -89,16 +89,16 @@ namespace ANNS {
 
 
 
-    // initialize trie index for base and query label sets
+    // initialize trie index for base and query label sets  构造数据的标签索引，把向量和其在前缀树中的 group 相关联
     void FilteredScan::init_trie_index(bool for_query) {
 
         // create groups for base label sets
         IdxType new_group_id = 1;
         for (auto vec_id=0; vec_id<_base_storage->get_num_points(); ++vec_id) {
-            auto group_id = base_trie_index.insert(_base_storage->get_label_set(vec_id), new_group_id);
+            auto group_id = base_trie_index.insert(_base_storage->get_label_set(vec_id), new_group_id); // 插入时会得到新的 group id
             if (group_id+1 > base_group_id_to_vec_ids.size())
                 base_group_id_to_vec_ids.resize(group_id+1);
-            base_group_id_to_vec_ids[group_id].emplace_back(vec_id);
+            base_group_id_to_vec_ids[group_id].emplace_back(vec_id);    // 把该向量插入对应的 group
         }
         std::cout << "- Number of groups in the base data: " << new_group_id-1 << std::endl;
         if (!for_query)
@@ -121,18 +121,18 @@ namespace ANNS {
 
 
 
-    // get all base super sets for a query label set
+    // get all base super sets for a query label set    找到查询标签集对应的超集的所有终端节点的 group id
     void FilteredScan::compute_base_super_sets(std::string scenario, const std::vector<LabelType>& query_label_set,
                                                      std::vector<IdxType>& base_super_set_group_ids) {
 
-        // push the super set entrances to queue
+        // push the super set entrances to queue    找到查询标签集的所有超集的节点，存入队列
         std::vector<std::shared_ptr<TrieNode>> super_set_entrances;
         base_trie_index.get_super_set_entrances(query_label_set, super_set_entrances, false, scenario=="containment");
         std::queue<std::shared_ptr<TrieNode>> q;
         for (const auto& node : super_set_entrances)
             q.push(node);
 
-        // find all super sets
+        // find all super sets  找到超集的所有终端节点的 group id
         base_super_set_group_ids.clear();
         while (!q.empty()) {
             auto cur = q.front();

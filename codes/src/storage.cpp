@@ -166,11 +166,11 @@ namespace ANNS {
     template<typename T>
     void Storage<T>::reorder_data(const std::vector<IdxType>& new_to_old_ids) {
 
-        // move the vectors and labels
+        // move the vectors and labels  分配新的内存空间存储排序后的向量
         auto new_vecs = static_cast<T*>(std::aligned_alloc(32, num_points * dim * sizeof(T)));
         auto new_label_sets = new std::vector<LabelType>[num_points];
         for (auto i=0; i<num_points; ++i) {
-            std::memcpy(new_vecs + i * dim, vecs + new_to_old_ids[i] * dim, dim * sizeof(T));
+            std::memcpy(new_vecs + i * dim, vecs + new_to_old_ids[i] * dim, dim * sizeof(T));   // 按照顺序拷贝原始向量到新的向量空间
             new_label_sets[i] = label_sets[new_to_old_ids[i]];
         }
         
@@ -187,7 +187,7 @@ namespace ANNS {
     template<typename T>
     IdxType Storage<T>::choose_medoid(uint32_t num_threads, std::shared_ptr<DistanceHandler> distance_handler) {
 
-        // compute center
+        // compute center   计算所有向量的中心
         T* center = new T[dim]();
         for (auto id=0; id<num_points; ++id) 
             for (auto d=0; d<dim; ++d)
@@ -195,13 +195,13 @@ namespace ANNS {
         for (auto d=0; d<dim; ++d)
             center[d] /= num_points;
 
-        // obtain the closet point to the center
+        // obtain the closet point to the center    计算所有向量到中心的距离
         std::vector<float> dists(num_points);
         omp_set_num_threads(num_threads);
         #pragma omp parallel for schedule(dynamic, 2048)
         for (auto id=0; id<num_points; ++id)
             dists[id] = distance_handler->compute((const char *)center, get_vector(id), dim);
-        IdxType medoid = std::min_element(dists.begin(), dists.end()) - dists.begin();
+        IdxType medoid = std::min_element(dists.begin(), dists.end()) - dists.begin();  // 找到距离最近的向量的索引
 
         // clean up
         delete[] center;

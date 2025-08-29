@@ -26,15 +26,15 @@ namespace ANNS {
         private:
 
             // data
-            std::shared_ptr<IStorage> _base_storage, _query_storage;
-            std::shared_ptr<DistanceHandler> _distance_handler;
-            std::pair<IdxType, float>* _results;
-            IdxType _K;
+            std::shared_ptr<IStorage> _base_storage, _query_storage;    // 基础数据和查询数据的存储
+            std::shared_ptr<DistanceHandler> _distance_handler;         // 距离计算处理对象
+            std::pair<IdxType, float>* _results;                        // 向量 id 和 距离
+            IdxType _K;                                                 // 查询需返回的最近邻的数量
 
             // trie index for label sets
-            TrieIndex base_trie_index, query_trie_index;
-            std::vector<std::vector<LabelType>> query_group_id_to_label_set;
-            std::vector<std::vector<IdxType>> base_group_id_to_vec_ids, query_group_id_to_vec_ids;
+            TrieIndex base_trie_index, query_trie_index;                // 存储数据和查询数据的标签的索引
+            std::vector<std::vector<LabelType>> query_group_id_to_label_set;    // 查询的每个 group 对应的标签集合
+            std::vector<std::vector<IdxType>> base_group_id_to_vec_ids, query_group_id_to_vec_ids;  // 树索引中每个 group 对应的向量，group id 从 1 开始
 
             // help function for answering all queries
             void init_trie_index(bool for_query=true);
