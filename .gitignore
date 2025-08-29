@@ -5,3 +5,5 @@
 *.pdf
 
 build/
+
+.idea
