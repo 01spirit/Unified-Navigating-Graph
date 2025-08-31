@@ -6,6 +6,7 @@
 
 namespace po = boost::program_options;
 
+// 向量文件转换
 
 /*
 .fvec files start with 4 bytes for the number of dimensions, then each vector takes 4+dim*4 bytes

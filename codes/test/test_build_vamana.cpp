@@ -6,12 +6,13 @@
 
 namespace po = boost::program_options;
 
-
+// vamana 是一种基于图的 ANNS 算法，用于查询相似向量
+// 每个节点代表一个数据点，边表示数据点之间的相似性
 
 int main(int argc, char** argv) {
 
     // common auguments
-    std::string data_type, dist_fn, base_bin_file, base_label_file, index_path_prefix;
+    std::string data_type, dist_fn, base_bin_file, base_label_file, index_path_prefix; // 存储命令行参数
     uint32_t num_threads;
 
     // parameters for Vamana
@@ -19,9 +20,9 @@ int main(int argc, char** argv) {
     float alpha;                      
 
     try {
-        po::options_description desc{"Arguments"};
+        po::options_description desc{"Arguments"};  // 描述命令行参数
 
-        // common arguments
+        // common arguments 添加参数
         desc.add_options()("help,h", "Print information on arguments");
         desc.add_options()("data_type", po::value<std::string>(&data_type)->required(), 
                            "data type <int8/uint8/float>");
@@ -44,13 +45,13 @@ int main(int argc, char** argv) {
         desc.add_options()("alpha", po::value<float>(&alpha)->default_value(ANNS::default_paras::ALPHA),
                            "Alpha for building Vamana");
 
-        po::variables_map vm;
+        po::variables_map vm;   // 存储解析的参数值
         po::store(po::parse_command_line(argc, argv, desc), vm);
         if (vm.count("help")) {
             std::cout << desc;
             return 0;
         }
-        po::notify(vm);
+        po::notify(vm); // 参数赋值给前面定义的变量
     } catch (const std::exception &ex) {
         std::cerr << ex.what() << std::endl;
         return -1;

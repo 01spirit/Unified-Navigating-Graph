@@ -6,6 +6,8 @@
 #include "graph.h"
 #include "search_cache.h"
 
+// vamana 是一种基于图的 ANNS 算法，用于查询相似向量
+// 每个节点代表一个数据点，边表示数据点之间的相似性
 
 namespace ANNS {
 
@@ -40,24 +42,24 @@ namespace ANNS {
         private:
 
             // data
-            std::shared_ptr<IStorage> _base_storage, _query_storage;
-            std::shared_ptr<DistanceHandler> _distance_handler;
+            std::shared_ptr<IStorage> _base_storage, _query_storage;    // 数据存储对象
+            std::shared_ptr<DistanceHandler> _distance_handler;     // 距离计算的处理对象
 
             // build parameters
-            IdxType _max_degree, _Lbuild, _max_candidate_size;
-            float _alpha;
-            uint32_t _num_threads;
+            IdxType _max_degree, _Lbuild, _max_candidate_size;  // 每个节点的最大度数，构件图时的候选集大小，最大候选集大小
+            float _alpha;   // 控制图的稀疏性
+            uint32_t _num_threads;  // 使用的线程数
 
             // build the graph
-            IdxType _entry_point;
-            std::shared_ptr<Graph> _graph;
+            IdxType _entry_point;   // 图的入口点
+            std::shared_ptr<Graph> _graph;  // 图的指针
             void link();
             void prune_neighbors(IdxType id, std::vector<Candidate>& candidates, std::vector<IdxType>& pruned_list, 
                                  std::shared_ptr<SearchCache> search_cache);
             void inter_insert(IdxType src, std::vector<IdxType>& src_neighbors, std::shared_ptr<SearchCache> search_cache);
 
             // for logs
-            bool _verbose;
+            bool _verbose;  // 是否打印调试信息
     };
 }
 

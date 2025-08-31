@@ -27,7 +27,7 @@ namespace ANNS {
         public:
             float compute(const char *a, const char *b, IdxType dim) const;
         private:
-            static inline __m128 masked_read(IdxType dim, const float *x);
+            static inline __m128 masked_read(IdxType dim, const float *x);  // 从内存中读取数据，并将其加载到 SIMD 寄存器中
     };
 }
 

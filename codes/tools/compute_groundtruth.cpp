@@ -7,7 +7,7 @@
 
 namespace po = boost::program_options;
 
-
+// 用过滤扫描算法计算查询向量的最近邻
 
 int main(int argc, char** argv) {
     std::string data_type, dist_fn, base_bin_file, query_bin_file, base_label_file, query_label_file, gt_file, scenario;

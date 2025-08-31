@@ -17,7 +17,7 @@ std::mt19937 gen(rd());
 
 
 
-// check if there are K vectors with super label sets
+// check if there are K vectors with super label sets  检查是否存在至少 K 个向量，其标签集合包含或等于给定的标签集合
 bool has_k_answers(const ANNS::TrieIndex& trie_index, const std::vector<ANNS::LabelType>& label_set, 
                    ANNS::IdxType K, const std::string& scenario) {
 
