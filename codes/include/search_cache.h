@@ -15,7 +15,7 @@ namespace ANNS {
     struct SearchCache {
         SearchQueue search_queue;   // 待处理的候选节点
         VisitedSet visited_set;     // 已访问节点
-        std::vector<Candidate> expanded_list;   // 扩展的节点
+        std::vector<Candidate> expanded_list;   // 扩展的节点的列表
         std::vector<float> occlude_factor;  // 遮挡因子，用于优化策略
 
         SearchCache(IdxType visited_set_size, int32_t search_queue_capacity) {

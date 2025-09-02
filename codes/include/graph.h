@@ -24,7 +24,7 @@ namespace ANNS {
                 neighbor_locks = new std::mutex[num_points];
             };
 
-            // 提取子图
+            // 提取子图     源图和子图共享邻居的内存空间，从源图对象的内存邻居空间中截取一部分，作为子图的邻居，对该内存区域中邻居的修改会反映到两个图上
             Graph(std::shared_ptr<Graph> graph, IdxType start, IdxType end) {
                 neighbors = graph->neighbors + start;
                 neighbor_locks = graph->neighbor_locks + start;

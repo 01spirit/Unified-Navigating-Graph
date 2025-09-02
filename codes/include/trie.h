@@ -44,7 +44,7 @@ namespace ANNS {
             LabelType get_max_label_id() const { return _max_label_id; }
             // 找到标签集合完全匹配的终端节点
             std::shared_ptr<TrieNode> find_exact_match(const std::vector<LabelType>& label_set) const;
-            // 找到这个标签集合的所有超集的入口节点，用参数指定是否包含精确匹配自身的节点；假设输入标签集合已经按升序排列
+            // 找到这个标签集合的所有的超集入口节点，用参数指定是否包含精确匹配自身的节点；假设输入标签集合已经按升序排列
             void get_super_set_entrances(const std::vector<LabelType>& label_set, 
                                          std::vector<std::shared_ptr<TrieNode>>& super_set_entrances, 
                                          bool avoid_self=false, bool need_containment=true) const;

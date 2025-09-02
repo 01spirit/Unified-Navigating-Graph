@@ -13,6 +13,7 @@ namespace fs = boost::filesystem;
 
 namespace ANNS {
 
+    // 构建 UNG 索引
     void UniNavGraph::build(std::shared_ptr<IStorage> base_storage, std::shared_ptr<DistanceHandler> distance_handler, 
                             std::string scenario, std::string index_name, uint32_t num_threads, IdxType num_cross_edges,
                             IdxType max_degree, IdxType Lbuild, float alpha) {
@@ -62,38 +63,38 @@ namespace ANNS {
     }
 
 
-
+    // 构建前缀树索引，用于划分向量 group
     void UniNavGraph::build_trie_and_divide_groups() {
 
         // create groups for base label sets
         IdxType new_group_id = 1;
-        for (auto vec_id=0; vec_id<_num_points; ++vec_id) {
+        for (auto vec_id=0; vec_id<_num_points; ++vec_id) {     // 遍历向量，将其标签集合插入前缀树
             const auto& label_set = _base_storage->get_label_set(vec_id);
-            auto group_id = _trie_index.insert(label_set, new_group_id);
+            auto group_id = _trie_index.insert(label_set, new_group_id);    // 标签集合对应的 group
 
             // deal with new label set
-            if (group_id+1 > _group_id_to_vec_ids.size()) {
+            if (group_id+1 > _group_id_to_vec_ids.size()) {     // group 数组扩容
                 _group_id_to_vec_ids.resize(group_id+1);
                 _group_id_to_label_set.resize(group_id+1);
                 _group_id_to_label_set[group_id] = label_set;
             }
-            _group_id_to_vec_ids[group_id].emplace_back(vec_id);
+            _group_id_to_vec_ids[group_id].emplace_back(vec_id);    // 向量存入 group
         }
 
         // logs
-        _num_groups = new_group_id-1;
+        _num_groups = new_group_id-1;   // group 总数
         std::cout << "- Number of groups: " << _num_groups << std::endl;    
     }
             
 
-
+    // 获取查询标签集合的最小超集的 group id
     void UniNavGraph::get_min_super_sets(const std::vector<LabelType>& query_label_set, std::vector<IdxType>& min_super_set_ids, 
                                          bool avoid_self, bool need_containment) {
         min_super_set_ids.clear();
 
         // obtain the candidates
         std::vector<std::shared_ptr<TrieNode>> candidates;
-        _trie_index.get_super_set_entrances(query_label_set, candidates, avoid_self, need_containment);
+        _trie_index.get_super_set_entrances(query_label_set, candidates, avoid_self, need_containment);     // 找到所有的超集入口节点
 
         // special cases
         if (candidates.empty())
@@ -104,13 +105,15 @@ namespace ANNS {
         }
 
         // obtain the minimum size
+        // 先把候选节点排序，优先找标签数量少的
         std::sort(candidates.begin(), candidates.end(), 
                   [](const std::shared_ptr<TrieNode>& a, const std::shared_ptr<TrieNode>& b) {
                       return a->label_set_size < b->label_set_size;
                   });
-        auto min_size = _group_id_to_label_set[candidates[0]->group_id].size();
-        
+        auto min_size = _group_id_to_label_set[candidates[0]->group_id].size();     // 标签数量最少的树节点的 group 的标签集合大小
+
         // get the minimum super sets
+        // 遍历所有候选节点，找到标签数量最少的，就是结果的最小超集
         for (auto candidate : candidates) {
             const auto& cur_group_id = candidate->group_id;
             const auto& cur_label_set = _group_id_to_label_set[cur_group_id];
@@ -118,56 +121,55 @@ namespace ANNS {
             
             // check whether contains existing minimum super sets (label ids are in ascending order)
             if (cur_label_set.size() > min_size) {
-                for (auto min_group_id : min_super_set_ids) {
+                for (auto min_group_id : min_super_set_ids) {   // 在上层 if 中，第一个 candidate 会自动添加到 min_super_set_ids
                     const auto& min_label_set = _group_id_to_label_set[min_group_id];
-                    if (std::includes(cur_label_set.begin(), cur_label_set.end(), min_label_set.begin(), min_label_set.end())) {
+                    if (std::includes(cur_label_set.begin(), cur_label_set.end(), min_label_set.begin(), min_label_set.end())) {    // 用包含关系判断是否最小
                         is_min = false;
                         break;
                     }
                 }
             }
 
-            // add to the minimum super sets
+            // add to the minimum super sets    // 暂存找到的最小超集
             if (is_min) 
                 min_super_set_ids.emplace_back(cur_group_id);
         }
     }
 
-
-
+    // 在前缀树划分 group 之后，为每个 group 准备存储和图索引；group 中 vec id 原本是离散的，需要重新设置为连续的 new_vec_id
     void UniNavGraph::prepare_group_storages_graphs() {
         _new_vec_id_to_group_id.resize(_num_points);
 
-        // reorder the vectors
-        _group_id_to_range.resize(_num_groups+1);
+        // reorder the vectors      重排序向量
+        _group_id_to_range.resize(_num_groups+1);   // group id 从 1 开始，所以要多分配一个
         _new_to_old_vec_ids.resize(_num_points);
         IdxType new_vec_id = 0;
-        for (auto group_id=1; group_id<=_num_groups; ++group_id) {
+        for (auto group_id=1; group_id<=_num_groups; ++group_id) {          // 遍历所有 group
             _group_id_to_range[group_id].first = new_vec_id;
-            for (auto old_vec_id : _group_id_to_vec_ids[group_id]) {
-                _new_to_old_vec_ids[new_vec_id] = old_vec_id;
-                _new_vec_id_to_group_id[new_vec_id] = group_id;
+            for (auto old_vec_id : _group_id_to_vec_ids[group_id]) {    // 遍历 group 中的基础数据，重排序前的向量 id
+                _new_to_old_vec_ids[new_vec_id] = old_vec_id;                   // 每个新向量对应的旧向量
+                _new_vec_id_to_group_id[new_vec_id] = group_id;                 // 新向量对应的 group id
                 ++new_vec_id;
             }
-            _group_id_to_range[group_id].second = new_vec_id;
+            _group_id_to_range[group_id].second = new_vec_id;                   // 重排序后 group 中的 vec id 范围，此时 id 是连续的
         }
 
-        // reorder the underlying storage
+        // reorder the underlying storage   根据重排序结果，重新排列内存中向量的顺序
         _base_storage->reorder_data(_new_to_old_vec_ids);
 
         // init storage and graph for each group
-        _group_storages.resize(_num_groups + 1);
+        _group_storages.resize(_num_groups + 1);    // 每个 group 的存储和图索引
         _group_graphs.resize(_num_groups + 1);
         for (auto group_id=1; group_id<=_num_groups; ++group_id) {
             auto start = _group_id_to_range[group_id].first;
             auto end = _group_id_to_range[group_id].second;
-            _group_storages[group_id] = create_storage(_base_storage, start, end);
+            _group_storages[group_id] = create_storage(_base_storage, start, end);  // 截取内存中向量的子序列，向量索引变为从 0 开始的局部索引，每个 group 的 storage 和 graph 有各自的局部索引
             _group_graphs[group_id] = std::make_shared<Graph>(_graph, start, end);
         }
     }
 
 
-
+    // 为每个 group 构建 vamana 图索引
     void UniNavGraph::build_graph_for_all_groups() {
         std::cout << "Building graph for each group ..." << std::endl;
         omp_set_num_threads(_num_threads);
@@ -178,26 +180,27 @@ namespace ANNS {
             _vamana_instances.resize(_num_groups + 1);
             _group_entry_points.resize(_num_groups + 1);
 
+            // 并行构建图索引
             #pragma omp parallel for schedule(dynamic, 1)
             for (auto group_id=1; group_id<=_num_groups; ++group_id) {
                 if (group_id % 100 == 0)
-                    std::cout << "\r" << (100.0 * group_id) / _num_groups << "%" << std::flush;
+                    std::cout << "\r" << (100.0 * group_id) / _num_groups << "%" << std::flush;     // 显示进度条，'\r' 将光标移回行首，std::flush 刷新缓冲区，把内容写到输出流
                 
                 // if there are less than _max_degree points in the group, just build a complete graph
                 const auto& range = _group_id_to_range[group_id];
                 if (range.second - range.first <= _max_degree) {
-                    build_complete_graph(_group_graphs[group_id], range.second - range.first);
+                    build_complete_graph(_group_graphs[group_id], range.second - range.first);      // 节点数量少于度数限制，构造所有节点都相连的完全图
                     _vamana_instances[group_id] = std::make_shared<Vamana>(_group_storages[group_id], _distance_handler,
                                                                            _group_graphs[group_id], 0);
 
-                // build the vamana graph
+                // build the vamana graph   构造 vamana 图索引
                 } else {                
                     _vamana_instances[group_id] = std::make_shared<Vamana>(false);
                     _vamana_instances[group_id]->build(_group_storages[group_id], _distance_handler, 
                                                        _group_graphs[group_id], _max_degree, _Lbuild, _alpha, 1);
                 }
 
-                // set entry point
+                // set entry point      group 索引入口点的向量 id
                 _group_entry_points[group_id] = _vamana_instances[group_id]->get_entry_point() + range.first;
             }
         
@@ -213,7 +216,7 @@ namespace ANNS {
     }
 
 
-
+    // 构建完全图，所有向量节点之间都有边
     void UniNavGraph::build_complete_graph(std::shared_ptr<Graph> graph, IdxType num_points) {
         for (auto i=0; i<num_points; ++i)
             for (auto j=0; j<num_points; ++j)
@@ -221,8 +224,13 @@ namespace ANNS {
                     graph->neighbors[i].emplace_back(j);
     }
 
+    /*
+     * 标签导航图 LNG ：前面用前缀树把向量的标签集合划分成了 group，每个 group 对应树中的一个终端节点，也对应 LNG 中的一个图节点
+     * LNG 节点的出边指向包含其标签的超集节点，所有出边邻居的标签集合都是该节点的超集，所有入边邻居的标签集合都是该节点的子集
+     * LNG 节点用 group id，索引从 1 开始
+    */
 
-
+    // 构建标签导航图
     void UniNavGraph::build_label_nav_graph() {
         std::cout << "Building label navigation graph... " << std::endl;
         auto start_time = std::chrono::high_resolution_clock::now();
@@ -233,15 +241,15 @@ namespace ANNS {
         #pragma omp parallel for schedule(dynamic, 256)
         for (auto group_id=1; group_id<=_num_groups; ++group_id) {
             if (group_id % 100 == 0)
-                std::cout << "\r" << (100.0 * group_id) / _num_groups << "%" << std::flush;
+                std::cout << "\r" << (100.0 * group_id) / _num_groups << "%" << std::flush;        // 打印构建进度
             std::vector<IdxType> min_super_set_ids;
-            get_min_super_sets(_group_id_to_label_set[group_id], min_super_set_ids, true);
+            get_min_super_sets(_group_id_to_label_set[group_id], min_super_set_ids, true);    // 用标签的最小超集构建标签导航图，超集节点是源节点的出边邻居
             _label_nav_graph->out_neighbors[group_id] = min_super_set_ids;
         }
 
         // obtain in-neighbors
         for (auto group_id=1; group_id<=_num_groups; ++group_id)
-            for (auto each : _label_nav_graph->out_neighbors[group_id])
+            for (auto each : _label_nav_graph->out_neighbors[group_id])     // 构建入边
                 _label_nav_graph->in_neighbors[each].emplace_back(group_id);
 
         _build_LNG_time = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -250,64 +258,71 @@ namespace ANNS {
     }
 
 
-
+    // 为 UNG 中每个向量的邻居节点添加偏移量，
+    // 此时的图索引中还没有跨组边，向量的所有邻居都是同一个 group 中的
+    // 每个 group 中使用的 vamana 索引都是从全局索引 _graph 中截取的子图，
+    // 构建完所有 group vamana index 之后，_graph 中可以访问到所有向量在其 group 内部的邻居
+    // group 中的向量使用的是从 0 开始的局部索引，构造全局的 _graph 索引需要把局部索引变为全局索引
+    // 偏移量是 group 中最小的 vec id，局部索引加上该偏移量就能得到划分 group 后重排序得到的全局索引 new vec id
+    // 加上偏移量之后，从 _graph 和 group vamana index 访问到的每个向量的邻居的 id 都是 new vec id
     void UniNavGraph::add_offset_for_uni_nav_graph() {
         omp_set_num_threads(_num_threads);
         #pragma omp parallel for schedule(dynamic, 4096)
-        for (auto i=0; i<_num_points; ++i)
-            for (auto& neighbor : _graph->neighbors[i])
-                neighbor += _group_id_to_range[_new_vec_id_to_group_id[i]].first;
+        for (auto i=0; i<_num_points; ++i)      // UNG 中的所有向量
+            for (auto& neighbor : _graph->neighbors[i])     // 每个向量在其 group 中的邻居的 id （局部索引）
+                neighbor += _group_id_to_range[_new_vec_id_to_group_id[i]].first;   // 该向量对应的 group 中的向量的起始 id，作为其邻居的偏移量，得到 neighbor 的全局索引 new vec id
     }
 
 
-
+    // todo 多线程并行构建边时，怎么同步不同线程间的信息，构造出来的边是否会有重复
+    // 构建跨组边，让不同 group 中的向量可以相互导航
     void UniNavGraph::build_cross_group_edges() {
         std::cout << "Building cross-group edges ..." << std::endl;
         auto start_time = std::chrono::high_resolution_clock::now();
         
-        // allocate memory for storaging cross-group neighbors
+        // allocate memory for storaging cross-group neighbors      为跨组近邻向量分配空间
         std::vector<SearchQueue> cross_group_neighbors;
         cross_group_neighbors.resize(_num_points);
         for (auto point_id=0; point_id<_num_points; ++point_id)
             cross_group_neighbors[point_id].reserve(_num_cross_edges);
 
-        // allocate memory for search caches
+        // allocate memory for search caches    分配搜索缓存池
         size_t max_group_size = 0;
         for (auto group_id=1; group_id<=_num_groups; ++group_id)
             max_group_size = std::max(max_group_size, _group_id_to_vec_ids[group_id].size());
         SearchCacheList search_cache_list(_num_threads, max_group_size, _Lbuild);
         omp_set_num_threads(_num_threads);
 
-        // for each group
+        // for each group       找到每个 group 的入边节点中的近邻向量，
         for (auto group_id=1; group_id<=_num_groups; ++group_id) {
-            if (_label_nav_graph->in_neighbors[group_id].size() > 0) {
+            if (_label_nav_graph->in_neighbors[group_id].size() > 0) {  // 当该组存在入边节点时
                 if (group_id % 100 == 0)
                     std::cout << "\r" << (100.0 * group_id) / _num_groups << "%" << std::flush;
-                IdxType offset = _group_id_to_range[group_id].first;
+                IdxType offset = _group_id_to_range[group_id].first;    // 该组的 new vec id 的起始值作为偏移量
 
                 // query vamana index
                 if (_index_name == "Vamana") {
-                    auto index = _vamana_instances[group_id];
+                    auto index = _vamana_instances[group_id];   // 这个 group 内的图索引，其中的向量使用从 0 开始的局部索引作为 id
                     if (_num_cross_edges > _Lbuild) {
                         std::cerr << "Error: num_cross_edges should be less than or equal to Lbuild" << std::endl;
                         exit(-1);
                     }
 
-                    // for each in-neighbor group
+                    // for each in-neighbor group           在源节点中搜索入边节点的每个向量的近邻
                     for (auto in_group_id : _label_nav_graph->in_neighbors[group_id]) {
-                        const auto& range = _group_id_to_range[in_group_id];
+                        const auto& range = _group_id_to_range[in_group_id];    // 该入边节点的 vec id range
 
                         // take each vector in the group as the query
                         #pragma omp parallel for schedule(dynamic, 1)
                         for (auto vec_id=range.first; vec_id<range.second; ++vec_id) {
                             const char* query = _base_storage->get_vector(vec_id);
                             auto search_cache = search_cache_list.get_free_cache(); 
-                            index->iterate_to_fixed_point(query, search_cache);
+                            index->iterate_to_fixed_point(query, search_cache);     // 在源节点中搜索入边节点向量的近邻，在 search_cache 中存入近邻向量的局部索引
 
-                            // update the cross-group edges for vec_id
+                            // update the cross-group edges for vec_id      把搜索到的跨组近邻存入队列，存入的 vec id 要加上源组偏移量，才是原本的全局 new vec id
                             for (auto k=0; k<search_cache->search_queue.size(); ++k)
                                 cross_group_neighbors[vec_id].insert(search_cache->search_queue[k].id + offset, 
-                                                                     search_cache->search_queue[k].distance);
+                                                                     search_cache->search_queue[k].distance);       // 源组中向量的所有跨组近邻向量
                             search_cache_list.release_cache(search_cache);
                         }
                     }
@@ -320,29 +335,32 @@ namespace ANNS {
             }
         }
 
-        // add additional edges
+        // add additional edges     在跨组边数量未达到限制时，构造源节点与出边节点间的跨组边
         std::vector<std::vector<std::pair<IdxType, IdxType>>> additional_edges(_num_groups+1);
         #pragma omp parallel for schedule(dynamic, 256)
         for (IdxType group_id=1; group_id <= _num_groups; ++group_id) {
-            const auto& cur_range = _group_id_to_range[group_id];
-            std::unordered_set<IdxType> connected_groups;
+            const auto& cur_range = _group_id_to_range[group_id];   // 该组的 new vec id range
+            std::unordered_set<IdxType> connected_groups;   // 该 group 连接的所有其他 group
 
-            // obtain connected groups
+            // obtain connected groups      根据入边节点的搜索结果，得到已于该组连接的其他组
             for (IdxType i=cur_range.first; i<cur_range.second; ++i)
-                for (IdxType j=0; j<cross_group_neighbors[i].size(); ++j)
-                    connected_groups.insert(_new_vec_id_to_group_id[cross_group_neighbors[i][j].id]);
+                for (IdxType j=0; j<cross_group_neighbors[i].size(); ++j)   // 遍历组内所有向量的所有跨组近邻
+                    connected_groups.insert(_new_vec_id_to_group_id[cross_group_neighbors[i][j].id]);   // 近邻向量的 group id
 
-            // add additional cross-group edges for unconnected groups
+            // todo 是否存在一个节点同时是另一个节点的 in/out neighbor 的关系；若不存在，下面的 if 有什么用处
+            // add additional cross-group edges for unconnected groups      遍历每个组的出边节点，给未连接的组添加额外的跨组边
             for (IdxType out_group_id : _label_nav_graph->out_neighbors[group_id])
-                if (connected_groups.find(out_group_id) == connected_groups.end()) {
+                if (connected_groups.find(out_group_id) == connected_groups.end()) {    // 若该出边节点还没和源节点连接，表明还没在其中搜索过近邻，需要像入边节点一样处理
                     IdxType cnt = 0;
+                    // 在出边节点中搜索源节点向量的近邻，直到跨组边数量到达限制
                     for (auto vec_id=cur_range.first; vec_id<cur_range.second && cnt < _num_cross_edges; ++vec_id) {
                         auto search_cache = search_cache_list.get_free_cache(); 
                         _vamana_instances[out_group_id]->iterate_to_fixed_point(_base_storage->get_vector(vec_id), search_cache);
 
+                        // _num_cross_edges / 2：限制每个向量在额外跨组边中添加的邻居数量，控制图的密度
                         for (auto k=0; k<search_cache->search_queue.size() && k<_num_cross_edges / 2; ++k) {
                             additional_edges[group_id].emplace_back(vec_id,
-                                                                    search_cache->search_queue[k].id + _group_id_to_range[out_group_id].first);
+                                                                    search_cache->search_queue[k].id + _group_id_to_range[out_group_id].first); // 跨组边从源节点指向出边节点
                             cnt += 1;
                         }
                         search_cache_list.release_cache(search_cache);
@@ -350,14 +368,15 @@ namespace ANNS {
                 }
         }
 
-        // add offset for uni-nav graph
+        // add offset for uni-nav graph     修改为全局索引
         add_offset_for_uni_nav_graph();
 
+        // 下面添加的两个跨组边的向量都已经加上了 offset，已经是全局索引了
         // merge cross-group edges
         #pragma omp parallel for schedule(dynamic, 4096)
         for (auto point_id=0; point_id<_num_points; ++point_id)
             for (auto k=0; k<cross_group_neighbors[point_id].size(); ++k)
-                _graph->neighbors[point_id].emplace_back(cross_group_neighbors[point_id][k].id);
+                _graph->neighbors[point_id].emplace_back(cross_group_neighbors[point_id][k].id);    // 在图索引中连接近邻向量的跨组边
 
         // merge additional cross-group edges
         #pragma omp parallel for schedule(dynamic, 256)
@@ -371,12 +390,19 @@ namespace ANNS {
         std::cout << "\r- Finish in " << _build_cross_edges_time << " ms" << std::endl;
     }
 
+/*
+ * 四种查询场景：overlap / nofilter / containment / equality
+ * overlap : 查询向量的标签集合与基础数据的有部分重叠，先获取查询标签集合在基础数据中的最小超集，这些超集与查询标签集合有重叠，在每个超集节点中都搜索近邻
+ * nofilter : 不根据查询标签集合进行过滤，直接使用所有组搜索近邻
+ * containment : 查询标签集合完全包含于基础数据的某个标签集合中，在该节点的向量及由跨组边连接的邻组向量中搜索近邻
+ * equality : 查询标签集合与基础数据的精确匹配，向量之间没有跨组边连接，只需要在一个节点内部搜索近邻
+ */
 
-
+    // 搜索所有查询向量的 K 近邻
     void UniNavGraph::search(std::shared_ptr<IStorage> query_storage, std::shared_ptr<DistanceHandler> distance_handler, 
                              uint32_t num_threads, IdxType Lsearch, IdxType num_entry_points, std::string scenario,
                              IdxType K, std::pair<IdxType, float>* results, std::vector<float>& num_cmps) {
-        auto num_queries = query_storage->get_num_points();
+        auto num_queries = query_storage->get_num_points();     // 查询向量数量
         _query_storage = query_storage;
         _distance_handler = distance_handler;
         _scenario = scenario;
@@ -386,14 +412,14 @@ namespace ANNS {
             std::cerr << "Error: K should be less than or equal to Lsearch" << std::endl;
             exit(-1);
         }
-        SearchCacheList search_cache_list(num_threads, _num_points, Lsearch);
+        SearchCacheList search_cache_list(num_threads, _num_points, Lsearch);   // 搜索缓存池
 
-        // run queries
+        // run queries      并行搜索每个查询向量
         omp_set_num_threads(num_threads);
         #pragma omp parallel for schedule(dynamic, 1)
         for (auto id = 0; id < num_queries; ++id) {
             auto search_cache = search_cache_list.get_free_cache(); 
-            const char* query = _query_storage->get_vector(id);
+            const char* query = _query_storage->get_vector(id); // 查询向量
             SearchQueue cur_result;
 
             // for overlap or nofilter scenario
@@ -407,7 +433,7 @@ namespace ANNS {
                 if (scenario == "overlap")
                     get_min_super_sets(_query_storage->get_label_set(id), entry_group_ids, false, false);
                 else
-                    get_min_super_sets({}, entry_group_ids, true, true);
+                    get_min_super_sets({}, entry_group_ids, true, true);    // 直接用所有 group
 
                 // for each entry group
                 for (const auto& group_id : entry_group_ids) {
@@ -437,7 +463,7 @@ namespace ANNS {
                 cur_result = search_cache->search_queue;
             }
 
-            // write results
+            // write results    记录每次搜索的结果 old vec id 和 distance
             for (auto k=0; k<K; ++k) {
                 if (k < cur_result.size()) {
                     results[id*K+k].first = _new_to_old_vec_ids[cur_result[k].id];
@@ -452,7 +478,7 @@ namespace ANNS {
     }
 
 
-
+    // 得到查询标签集的给定数量的索引入口点，记录已访问节点
     std::vector<IdxType> UniNavGraph::get_entry_points(const std::vector<LabelType>& query_label_set, 
                                                        IdxType num_entry_points, VisitedSet& visited_set) {
         std::vector<IdxType> entry_points;
@@ -460,14 +486,14 @@ namespace ANNS {
         visited_set.clear();
         
         // obtain entry points for label-equality scenario
-        if (_scenario == "equality") {
+        if (_scenario == "equality") {      // 该搜索场景不需要跨组，只需要在前缀树中找到精确匹配的终端节点，在该节点内找入口点
             auto node = _trie_index.find_exact_match(query_label_set);
             if (node == nullptr)
                 return entry_points;
             get_entry_points_given_group_id(num_entry_points, visited_set, node->group_id, entry_points);
             
         // obtain entry points for label-containment scenario
-        } else if (_scenario == "containment") {
+        } else if (_scenario == "containment") {    // 包含关系的搜索需要跨组，先找到最小超集，再从每个超集节点中找 num_entry_points 个入口点
             std::vector<IdxType> min_super_set_ids;
             get_min_super_sets(query_label_set, min_super_set_ids);
             for (auto group_id : min_super_set_ids)
@@ -482,27 +508,27 @@ namespace ANNS {
     }
 
 
-
+    // 在指定的 group 中获取给定数量的入口点，记录已访问节点
     void UniNavGraph::get_entry_points_given_group_id(IdxType num_entry_points, VisitedSet& visited_set, 
                                                       IdxType group_id, std::vector<IdxType>& entry_points) {
         const auto& group_range = _group_id_to_range[group_id];
 
-        // not enough entry points, use all of them
+        // not enough entry points, use all of them     组内节点不够，全用上
         if (group_range.second - group_range.first <= num_entry_points) {
             for (auto i=0; i<group_range.second - group_range.first; ++i)
                 entry_points.emplace_back(i + group_range.first);
             return;
         }
 
-        // add the entry point of the group
+        // add the entry point of the group     先存入该组的图索引的入口点
         const auto& group_entry_point = _group_entry_points[group_id];
         visited_set.set(group_entry_point);
         entry_points.emplace_back(group_entry_point);
         
-        // randomly sample the other entry points
+        // randomly sample the other entry points   再随机选取组内向量作为入口点
         for (auto i=1; i<num_entry_points; ++i) {
-            auto entry_point = rand() % (group_range.second - group_range.first) + group_range.first;
-            if (visited_set.check(entry_point) == false) {
+            auto entry_point = rand() % (group_range.second - group_range.first) + group_range.first;   // 随机选取组内向量作为入口点
+            if (visited_set.check(entry_point) == false) {  // 若该节点没访问过，就直接作为入口点
                 visited_set.set(entry_point);
                 entry_points.emplace_back(i + group_range.first);
             }
@@ -510,12 +536,13 @@ namespace ANNS {
     }
 
 
-
+    // 和 vamana.cpp 中的类似
+    // 从入口点开始扩展，寻找查询向量的固定点，固定点是能找到的离查询向量最近的点，搜索过程中的所有近邻按距离顺序存入 search_cache，返回比较次数
     IdxType UniNavGraph::iterate_to_fixed_point(const char* query, std::shared_ptr<SearchCache> search_cache, 
                                                 IdxType target_id, const std::vector<IdxType>& entry_points,
                                                 bool clear_search_queue, bool clear_visited_set) {
         auto dim = _base_storage->get_dim();
-        auto& search_queue = search_cache->search_queue;
+        auto& search_queue = search_cache->search_queue;    // 存储搜索过程中的近邻
         auto& visited_set = search_cache->visited_set;
         std::vector<IdxType> neighbors;
         if (clear_search_queue)
@@ -523,23 +550,23 @@ namespace ANNS {
         if (clear_visited_set)
             visited_set.clear();
         
-        // entry point
+        // entry point  从入口点开始扩展
         for (const auto& entry_point : entry_points)
             search_queue.insert(entry_point, _distance_handler->compute(query, _base_storage->get_vector(entry_point), dim));
         IdxType num_cmps = entry_points.size();
 
-        // greedily expand closest nodes
+        // greedily expand closest nodes    贪心扩展到最近节点
         while (search_queue.has_unexpanded_node()) {
-            const Candidate& cur = search_queue.get_closest_unexpanded();
+            const Candidate& cur = search_queue.get_closest_unexpanded();   // 下一个最近的可扩展节点
 
             // iterate neighbors
             {
                 std::lock_guard<std::mutex> lock(_graph->neighbor_locks[cur.id]);
-                neighbors = _graph->neighbors[cur.id];
+                neighbors = _graph->neighbors[cur.id];      // 可扩展节点的所有邻居节点，包括由跨组边连接的其他组的节点
             }
-            for (auto i=0; i<neighbors.size(); ++i) {
+            for (auto i=0; i<neighbors.size(); ++i) {   // 遍历可扩展的邻居
 
-                // prefetch
+                // prefetch     预取下一条数据到 L1 cache
                 if (i+1 < neighbors.size() && visited_set.check(neighbors[i+1]) == false)
                     _base_storage->prefetch_vec_by_id(neighbors[i+1]);
 
@@ -558,7 +585,7 @@ namespace ANNS {
     }
 
 
-
+    // 序列化所有元数据和索引
     void UniNavGraph::save(std::string index_path_prefix) {
         fs::create_directories(index_path_prefix);
         std::cout << "Saving index to " << index_path_prefix << " ..." << std::endl;

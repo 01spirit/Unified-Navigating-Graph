@@ -80,7 +80,7 @@ namespace ANNS {
         } else {
 
             // if need containing the input label set, obtain candidate nodes for the last label
-            // 超级是否需要完全包含标签集合，不需要的话可以返回包含标签子集的超集
+            // 超集是否需要完全包含标签集合，不需要的话可以返回包含标签子集的超集
             if (need_containment) {
                 for (auto node : _label_to_nodes[label_set[label_set.size()-1]])
                     if (examine_containment(label_set, node))

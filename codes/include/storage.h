@@ -37,7 +37,7 @@ namespace ANNS {
             virtual std::vector<LabelType>& get_label_set(IdxType idx) = 0;
             virtual inline void prefetch_vec_by_id(IdxType idx) const = 0;
 
-            // obtain a point cloest to the center
+            // obtain a point cloest to the center  找出最接近几何中心的向量，作为图索引的入口
             virtual IdxType choose_medoid(uint32_t num_threads, std::shared_ptr<DistanceHandler> distance_handler) = 0;
 
             // clean
@@ -63,7 +63,7 @@ namespace ANNS {
             void load_from_file(const std::string& bin_file, const std::string& label_file, IdxType max_num_points);
             void write_to_file(const std::string& bin_file, const std::string& label_file);
 
-            // reorder the vector data  按照给定
+            // reorder the vector data  按照给定的 id 顺序排列向量在内存中的顺序
             void reorder_data(const std::vector<IdxType>& new_to_old_ids);
 
             // get statistics
@@ -75,6 +75,7 @@ namespace ANNS {
             std::vector<LabelType>* get_offseted_label_sets(IdxType idx) { return label_sets + idx; }
             char* get_vector(IdxType idx) { return reinterpret_cast<char *>(vecs + idx * dim); }
             std::vector<LabelType>& get_label_set(IdxType idx) { return label_sets[idx]; }
+            // 预取一个向量到 L1 cache 中，idx 是向量 id，每次读取该向量的 64 字节
             inline void prefetch_vec_by_id(IdxType idx) const {
                 for (size_t d = 0; d < prefetch_byte_num; d += 64) _mm_prefetch((const char *)(vecs + idx * dim) + d, _MM_HINT_T0);
             }
@@ -94,7 +95,7 @@ namespace ANNS {
             DataType data_type;
             IdxType num_points, dim;
             T* vecs = nullptr;
-            size_t prefetch_byte_num;
+            size_t prefetch_byte_num;   // 一次预取的字节数量，数据维度 * sizeof(datatype)，即一个向量的长度
             std::vector<LabelType>* label_sets = nullptr;
 
             // for logs

@@ -58,13 +58,13 @@ namespace ANNS {
 
 
 
-    // load from storage without copying data
+    // load from storage without copying data   基于源存储对象的一段内存向量构造新的存储对象，对其向量的修改会能从源存储对象访问到
     template<typename T>
     Storage<T>::Storage(std::shared_ptr<IStorage> storage, IdxType start, IdxType end) {
         data_type = storage->get_data_type();
         num_points = end - start;
         dim = storage->get_dim();
-        vecs = reinterpret_cast<T *>(storage->get_vector(start));
+        vecs = reinterpret_cast<T *>(storage->get_vector(start));   // 指向源存储对象的一块内存空间
         label_sets = storage->get_offseted_label_sets(start);
         prefetch_byte_num = dim * sizeof(T);
         verbose = false;
@@ -72,7 +72,7 @@ namespace ANNS {
 
     
 
-    // load data
+    // load data    从文件中读取数据点及其标签集合，对每个标签集合排序
     template<typename T>
     void Storage<T>::load_from_file(const std::string& bin_file, const std::string& label_file, IdxType max_num_points) {
         if (verbose)
@@ -94,9 +94,9 @@ namespace ANNS {
         file.close();
 
         // for prefetch
-        prefetch_byte_num = dim * sizeof(T);
+        prefetch_byte_num = dim * sizeof(T);    // 一次预取的字节数量，数据维度 * sizeof(datatype)
 
-        // read label data if exists
+        // read label data if exists    读取标签集合，对每个标签集合排序
         std::map<LabelType, IdxType> label_cnts;
         label_sets = new std::vector<LabelType>[num_points];
         file.open(label_file);

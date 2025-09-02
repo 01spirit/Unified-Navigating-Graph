@@ -8,6 +8,7 @@
 
 // vamana 是一种基于图的 ANNS 算法，用于查询相似向量
 // 每个节点代表一个数据点，边表示数据点之间的相似性
+// 把所有向量连接成图，在临近的向量之间构建边，从入口点开始，通过边扩展搜索相似向量
 
 namespace ANNS {
 
@@ -46,7 +47,7 @@ namespace ANNS {
             std::shared_ptr<DistanceHandler> _distance_handler;     // 距离计算的处理对象
 
             // build parameters
-            IdxType _max_degree, _Lbuild, _max_candidate_size;  // 每个节点的最大度数，构件图时的候选集大小，最大候选集大小
+            IdxType _max_degree, _Lbuild, _max_candidate_size;  // 每个节点的最大度数，构建图时的候选集大小，最大候选集大小
             float _alpha;   // 控制图的稀疏性
             uint32_t _num_threads;  // 使用的线程数
 

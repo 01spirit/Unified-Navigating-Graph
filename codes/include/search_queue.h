@@ -45,7 +45,7 @@ namespace ANNS {
             Candidate operator[](int32_t idx) const { return _data[idx]; }
             Candidate& operator[](int32_t idx) { return _data[idx]; };
             bool exist(IdxType id) const;
-            void insert(IdxType id, float distance);    // 按大小顺序插入
+            void insert(IdxType id, float distance);    // 向搜索队列中按距离大小有序插入一个向量
             void clear() { _size = 0; _cur_unexpanded = 0; };
 
             // expand
