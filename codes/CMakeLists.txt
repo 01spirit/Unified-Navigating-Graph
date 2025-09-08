@@ -18,6 +18,9 @@ else()
     message(FATAL_ERROR "no Boost supprot")
 endif()
 
+find_package(GTest REQUIRED)
+include_directories(${GTEST_INCLUDE_DIRS})
+
 # OpenMP
 find_package(OpenMP)
 if (OPENMP_FOUND)
@@ -42,3 +45,6 @@ add_subdirectory(src)
 add_subdirectory(tools)
 add_subdirectory(test)
 add_subdirectory(apps)
+
+add_executable(RptreeTest src/rptree_test.cpp)
+target_link_libraries(RptreeTest ${PROJECT_NAME} Vamana ${GTEST_LIBRARIES} pthread)

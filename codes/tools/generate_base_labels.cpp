@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
         std::poisson_distribution<> distr(expected_num_label); // define the range
         
         for (size_t i = 0; i < num_points; i++) {
-            ANNS::IdxType num_labels_cur_point = dis    tr(gen) % num_labels + 1;
+            ANNS::IdxType num_labels_cur_point = distr(gen) % num_labels + 1;
             std::vector<ANNS::LabelType> label_set;
 
             // assign labels
