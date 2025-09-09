@@ -30,6 +30,8 @@ else()
     message(FATAL_ERROR "no OpenMP supprot")
 endif()
 
+find_library(STATGRAB_LIBRARY statgrab)
+
 # build options
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -mfma -msse2 -ftree-vectorize -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -fopenmp -fopenmp-simd -funroll-loops -Wfatal-errors -DUSE_AVX2")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -DDEBUG")
@@ -45,6 +47,7 @@ add_subdirectory(src)
 add_subdirectory(tools)
 add_subdirectory(test)
 add_subdirectory(apps)
+add_subdirectory(third_party)
 
 add_executable(RptreeTest src/rptree_test.cpp)
-target_link_libraries(RptreeTest ${PROJECT_NAME} Vamana ${GTEST_LIBRARIES} pthread)
+target_link_libraries(RptreeTest ${PROJECT_NAME} Vamana ${GTEST_LIBRARIES} pthread statgrab)

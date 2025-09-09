@@ -41,10 +41,10 @@ namespace ANNS {
          *  朴素循环
          */
         // naive
-        float ans = 0;
-        for (IdxType i = 0; i < dim; i++)
-            ans += (x[i] - y[i]) * (x[i] - y[i]);    // 逐个计算每个维度的差的平方，并累加到结果中
-        return ans;
+        // float ans = 0;
+        // for (IdxType i = 0; i < dim; i++)
+        //     ans += (x[i] - y[i]) * (x[i] - y[i]);    // 逐个计算每个维度的差的平方，并累加到结果中
+        // return ans;
 
         /*
          *  OpenMP SIMD 并行化

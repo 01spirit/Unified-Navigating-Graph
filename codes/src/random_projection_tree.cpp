@@ -62,12 +62,15 @@ namespace ANNS {
         IdxType vsize = vecs.size();
         if (vsize <= max_node_size) {
             std::shared_ptr<RPTreeNode> leaf = std::make_shared<RPTreeNode>();
-            for (IdxType i = 0; i < vsize; i++) {
-                leaf->points.emplace_back(i);
-            }
             leaf->depth = depth;
-            leaf->group_id = new_group_id++;
+            leaf->group_id = new_group_id;
             leaf->group_size = vsize;
+            _points.resize(new_group_id+1);
+            for (IdxType i = 0; i < vsize; i++) {
+                _points[new_group_id].emplace_back(i);
+            }
+            new_group_id++;
+
             return leaf;
         }
 
@@ -101,7 +104,7 @@ namespace ANNS {
         node->randomDirection = dir;
         node->medianProj = median;
         node->depth = depth;
-        node->group_id = new_group_id++;
+        node->group_id = 0;
         node->group_size = vecs.size();
         node->left = build_tree(left_vecs, depth + 1, new_group_id);
         node->right = build_tree(right_vecs, depth + 1, new_group_id);
@@ -143,7 +146,7 @@ namespace ANNS {
 
         if (!node->left && !node->right) {
             // std::cout<<"SEARCH: Depth: "<<node->depth<<" group id: "<<node->group_id<<" vecs size: "<<node->group_size<<std::endl;
-            for (auto& pt : node->points) {
+            for (auto& pt : _points[node->group_id]) {
                 float dist = _distance_handler->compute(_base_storage->get_vector(pt), _query_storage->get_vector(query_vec), _dim);
                 search_queue.insert(pt, dist);
             }
