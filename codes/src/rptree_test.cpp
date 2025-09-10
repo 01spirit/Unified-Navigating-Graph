@@ -3,6 +3,7 @@
 #include <boost/mpl/distance.hpp>
 #include <boost/range/distance.hpp>
 #include <statgrab.h>
+#include <atomic>
 
 #include "random_projection_tree.h"
 #include "graph.h"
