@@ -32,6 +32,15 @@ endif()
 
 find_library(STATGRAB_LIBRARY statgrab)
 
+# BLAS
+find_package(BLAS REQUIRED)
+if (BLAS_FOUND)
+    include_directories(${BLAS_INCLUDE_DIRS})
+    set(BLAS_LIBRARIES ${BLAS_LIBRARIES})
+else()
+    message(FATAL_ERROR "no BLAS support")
+endif()
+
 # build options
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -mfma -msse2 -ftree-vectorize -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -fopenmp -fopenmp-simd -funroll-loops -Wfatal-errors -DUSE_AVX2")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -DDEBUG")
@@ -51,3 +60,6 @@ add_subdirectory(third_party)
 
 add_executable(RptreeTest src/rptree_test.cpp)
 target_link_libraries(RptreeTest ${PROJECT_NAME} Vamana ${GTEST_LIBRARIES} pthread statgrab)
+
+add_executable(KmeansTest src/kmeans_test.cpp)
+target_link_libraries(KmeansTest ${PROJECT_NAME} Vamana ${GTEST_LIBRARIES} pthread statgrab ${BLAS_LIBRARIES})

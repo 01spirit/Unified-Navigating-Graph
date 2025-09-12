@@ -43,7 +43,7 @@ namespace ANNS {
             // clean
             virtual void clean() = 0;
     };
-    
+
 
     // obtain corresponding storage class
     std::shared_ptr<IStorage> create_storage(const std::string& data_type, bool verbose = true);
