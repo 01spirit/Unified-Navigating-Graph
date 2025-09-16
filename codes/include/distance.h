@@ -26,7 +26,7 @@ namespace ANNS {
     class FloatL2DistanceHandler : public DistanceHandler {
         public:
             float compute(const char *a, const char *b, IdxType dim) const;
-        private:
+        // private:
             static inline __m128 masked_read(IdxType dim, const float *x);  // 从内存中读取数据，并将其加载到 SIMD 寄存器中
     };
 }

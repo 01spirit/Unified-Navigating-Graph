@@ -63,6 +63,9 @@ namespace ANNS {
         auto start_time = std::chrono::high_resolution_clock::now();
         std::shared_ptr<ANNS::DistanceHandler> distance_handler = ANNS::get_distance_handler(data_type, dist_fn);
 
+        IdxType max_node_size = 1024;
+        IdxType num_threads = 4;
+
         // build vamana index
         // std::shared_ptr<ANNS::Graph> graph = std::make_shared<ANNS::Graph>(base_storage->get_num_points());
         // ANNS::Vamana index;
@@ -70,8 +73,8 @@ namespace ANNS {
         // std::cout << "Index time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << "ms" << std::endl;
 
         start_time = std::chrono::high_resolution_clock::now();
-        std::shared_ptr<RPTree> rp_tree = std::make_shared<RPTree>(base_storage, distance_handler);
-        rp_tree->build();
+        std::shared_ptr<RPTree> rp_tree = std::make_shared<RPTree>(base_storage, distance_handler, max_node_size);
+        rp_tree->build(num_threads);
         std::cout << "Index time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << "ms" << std::endl;
 
         // rp_tree->traverse_tree(rp_tree->get_root());
@@ -107,8 +110,10 @@ namespace ANNS {
         auto start_time = std::chrono::high_resolution_clock::now();
         std::shared_ptr<ANNS::DistanceHandler> distance_handler = ANNS::get_distance_handler(data_type, dist_fn);
 
+        IdxType max_node_size = 1000;
+
         start_time = std::chrono::high_resolution_clock::now();
-        std::shared_ptr<RPTree> rp_tree = std::make_shared<RPTree>(base_storage, distance_handler);
+        std::shared_ptr<RPTree> rp_tree = std::make_shared<RPTree>(base_storage, distance_handler, max_node_size);
         rp_tree->build();
         std::cout << "Index time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << "ms" << std::endl;
 

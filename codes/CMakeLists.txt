@@ -59,7 +59,7 @@ add_subdirectory(apps)
 add_subdirectory(third_party)
 
 add_executable(RptreeTest src/rptree_test.cpp)
-target_link_libraries(RptreeTest ${PROJECT_NAME} Vamana ${GTEST_LIBRARIES} pthread statgrab)
+target_link_libraries(RptreeTest ${PROJECT_NAME} Vamana ${GTEST_LIBRARIES} pthread statgrab ${BLAS_LIBRARIES})
 
 add_executable(KmeansTest src/kmeans_test.cpp)
 target_link_libraries(KmeansTest ${PROJECT_NAME} Vamana ${GTEST_LIBRARIES} pthread statgrab ${BLAS_LIBRARIES})

@@ -38,7 +38,7 @@ namespace ANNS {
     };
 
     // 计算向量间的距离
-    static inline __m128 masked_read(IdxType dim, const float *x);
+    __m128 masked_read(IdxType dim, const float *x);
     float calc_distance(const char *x, const char *y, IdxType dim );
     float calc_distance(const float *x, const float *y, IdxType dim);
 
