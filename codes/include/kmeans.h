@@ -81,7 +81,7 @@ namespace ANNS {
      * pts_norms_squared : 预计算的数据点的平方 L2 范数
      */
     void compute_closest_centers(float *data, size_t num_points, size_t dim, float *pivot_data, size_t num_centers,
-                                 size_t k, uint32_t *closest_centers_ivf, std::vector<size_t> *inverted_index = NULL,
+                                 size_t k, std::vector<IdxType> &closest_centers_ivf, std::vector<std::vector<IdxType>> &inverted_index,
                                  float *pts_norms_squared = NULL);
 
     // if to_subtract is 1, will subtract nearest center from each row. Else will
@@ -104,7 +104,7 @@ namespace ANNS {
      * closest_center : 每个数据点的最近聚类中心的索引
      */
     float lloyds_iter(float *data, size_t num_points, size_t dim, float *centers, size_t num_centers, float *docs_l2sq,
-                      std::vector<size_t> *closest_docs, uint32_t *&closest_center);
+                      std::vector<std::vector<IdxType>> &closest_docs, std::vector<IdxType> &closest_center);
 
     // Run Lloyds until max_reps or stopping criterion
     // If you pass NULL for closest_docs and closest_center, it will NOT return
@@ -122,7 +122,7 @@ namespace ANNS {
      * closest_center : 每个数据点的最近聚类中心
      */
     float run_lloyds(float *data, size_t num_points, size_t dim, float *centers, const size_t num_centers,
-                     const size_t max_reps, std::vector<size_t> *closest_docs, uint32_t *closest_center);
+                     const size_t max_reps, std::vector<std::vector<IdxType>> &closest_docs, std::vector<IdxType> &closest_center);
 
 
     // 选取聚类中心
@@ -130,6 +130,10 @@ namespace ANNS {
 
     // kmeans++，优化的 kmeans 方法
     void kmeanspp_selecting_pivots(float *data, size_t num_points, size_t dim, float *pivot_data, size_t num_centers);
+
+
+    void kmeans_sampling(const float *data, IdxType num_points, IdxType dim, double rate, float* &sample_vecs, IdxType& num_samples);
+
 }
 
 

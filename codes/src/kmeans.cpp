@@ -234,7 +234,7 @@ namespace ANNS {
     // then it will assume that point norms are pre-computed and use those values
 
     void compute_closest_centers(float *data, size_t num_points, size_t dim, float *pivot_data, size_t num_centers,
-                                 size_t k, uint32_t *closest_centers_ivf, std::vector<size_t> *inverted_index,
+                                 size_t k, std::vector<IdxType> &closest_centers_ivf, std::vector<std::vector<IdxType>> &inverted_index,
                                  float *pts_norms_squared)
     {
         if (k > num_centers)
@@ -280,7 +280,7 @@ namespace ANNS {
                 {   // 添加最近聚类中心
                     size_t this_center_id = closest_centers[(j - cur_blk * PAR_BLOCK_SIZE) * k + l];
                     closest_centers_ivf[j * k + l] = (uint32_t)this_center_id;
-                    if (inverted_index != nullptr)
+                    if (!inverted_index.empty())
                     {   // 把向量添加到对应聚类中心的倒排索引
                         #pragma omp critical
                         inverted_index[this_center_id].push_back(j);    // 在并行时，同一时间只能由一个线程执行
@@ -329,18 +329,13 @@ namespace ANNS {
     // closest_docs == NULL, will allocate memory and return.
 
     float lloyds_iter(float *data, size_t num_points, size_t dim, float *centers, size_t num_centers, float *docs_l2sq,
-                      std::vector<size_t> *closest_docs, uint32_t *&closest_center)
+                      std::vector<std::vector<IdxType>> &closest_docs, std::vector<IdxType> &closest_center)
     {
         bool compute_residual = true;
         // Timer timer;
 
-        if (closest_center == NULL)
-            closest_center = new uint32_t[num_points];
-        if (closest_docs == nullptr)
-            closest_docs = new std::vector<size_t>[num_centers];
-        else
-            for (size_t c = 0; c < num_centers; ++c)
-                closest_docs[c].clear();
+        for (size_t c = 0; c < num_centers; ++c)
+            closest_docs[c].clear();
 
         // 计算每个点最近的聚类中心
         compute_closest_centers(data, num_points, dim, centers, num_centers, 1, closest_center, closest_docs,
@@ -404,21 +399,9 @@ namespace ANNS {
     // Final centers are output in centers as row major num_centers * dim
     //
     float run_lloyds(float *data, size_t num_points, size_t dim, float *centers, const size_t num_centers,
-                     const size_t max_reps, std::vector<size_t> *closest_docs, uint32_t *closest_center)
+                     const size_t max_reps, std::vector<std::vector<IdxType>> &closest_docs, std::vector<IdxType> &closest_center)
     {
         float residual = std::numeric_limits<float>::max();
-        bool ret_closest_docs = true;
-        bool ret_closest_center = true;
-        if (closest_docs == NULL)
-        {
-            closest_docs = new std::vector<size_t>[num_centers];
-            ret_closest_docs = false;
-        }
-        if (closest_center == NULL)
-        {
-            closest_center = new uint32_t[num_points];
-            ret_closest_center = false;
-        }
 
         // 计算每个向量的平方 L2 范数
         float *docs_l2sq = new float[num_points];
@@ -444,10 +427,6 @@ namespace ANNS {
             }
         }
         delete[] docs_l2sq;
-        if (!ret_closest_docs)
-            delete[] closest_docs;
-        if (!ret_closest_center)
-            delete[] closest_center;
         return residual;
     }
 
@@ -560,6 +539,28 @@ namespace ANNS {
             num_picked++;
         }
         delete[] dist;
+    }
+
+    void kmeans_sampling(const float *data, IdxType num_points, IdxType dim, double rate, float* &sample_vecs, IdxType& num_samples) {
+        std::vector<std::vector<IdxType>> sampled_data;
+        rate = std::min(rate, 1.0);
+        std::random_device rd;
+        size_t x = rd();
+        std::mt19937 generator((uint32_t)x);
+        std::uniform_real_distribution<float> distribution(0, 1);
+
+        IdxType max_num_samples = num_points * rate;
+        num_samples = 0;
+        for (IdxType i = 0; i < num_points; ++i) {
+            float rnd_val = distribution(generator);
+            if (rnd_val < rate) {
+                std::memcpy(sample_vecs + num_samples * dim, data + i * dim, dim * sizeof(float));
+                num_samples++;
+            }
+            if (num_samples >= max_num_samples) return;
+        }
+
+
     }
 
 } // namespace ANNS

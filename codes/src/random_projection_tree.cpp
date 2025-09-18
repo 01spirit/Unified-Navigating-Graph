@@ -21,14 +21,26 @@ namespace ANNS {
         _num_points = base_storage->get_num_points();
         _dim = base_storage->get_dim();
         _num_queries = 0;
+        _num_groups = 0;
+        _num_samples = 0;
+
+        _sample_vecs = nullptr;
+        _pivot_data = nullptr;
 
         srand(time(0));
         _root = std::make_shared<RPTreeNode>();
     }
 
+    RPTree::~RPTree() {
+        delete [] _pivot_data;
+        delete [] _sample_vecs;
+    }
+
+
     void RPTree::build(IdxType num_threads) {
         std::cout<<SEP_LINE;
         std::cout<<"Building RPTree..."<<std::endl;
+        _vec_id_to_group_id.resize(_num_points);
         std::vector<IdxType> vecs(_num_points);
         std::iota(vecs.begin(), vecs.end(), 0);
         IdxType new_group_id = 1;
@@ -137,30 +149,37 @@ namespace ANNS {
         _num_threads = std::min(num_threads, std::thread::hardware_concurrency());
         omp_set_num_threads(_num_threads);
 
+        // leaf node
         IdxType vsize = vecs.size();
         if (vsize <= _max_node_size) {
             std::shared_ptr<RPTreeNode> leaf = std::make_shared<RPTreeNode>();
             leaf->depth = depth;
             leaf->group_id = new_group_id;
             leaf->group_size = vsize;
-            _points.resize(new_group_id+1);
+            _mutex.lock();
+            _points_in_node.resize(new_group_id+1);
             for (IdxType i = 0; i < vsize; i++) {
-                _points[new_group_id].emplace_back(i);
+                _points_in_node[new_group_id].emplace_back(vecs[i]);
+                _vec_id_to_group_id[vecs[i]] = new_group_id;
             }
+            _leaf_nodes.resize(new_group_id+1);
+            _leaf_nodes[new_group_id] = leaf;
             new_group_id++;
+            _num_groups++;
+            _mutex.unlock();
 
             return leaf;
         }
 
-        float* dir = new float[_dim];
-        generate_random_direction(_dim, dir);
+        std::shared_ptr<RPTreeNode> node = std::make_shared<RPTreeNode>();
+        node->randomDirection = new float[_dim];
+        generate_random_direction(_dim, node->randomDirection);
         auto projections = std::vector<std::pair<IdxType, float>>(vsize);
         #pragma omp parallel for schedule(dynamic, 1024)
         for (IdxType i = 0; i < vsize; i++) {
-            float p = project(_base_storage->get_vector(vecs[i]), dir, _dim);
+            float p = project(_base_storage->get_vector(vecs[i]), node->randomDirection, _dim);
             projections[i] = std::make_pair(vecs[i], p);
         }
-        delete[] dir;
 
         std::sort(projections.begin(), projections.end(),
             [](const std::pair<IdxType, float>& a, const std::pair<IdxType, float>& b) {
@@ -181,20 +200,24 @@ namespace ANNS {
             }
         }
 
-        std::shared_ptr<RPTreeNode> node = std::make_shared<RPTreeNode>();
-        // node->randomDirection = dir;
         node->medianProj = median;
         node->depth = depth;
         node->group_id = 0;
         node->group_size = vecs.size();
-        node->left = build_tree(left_vecs, depth + 1, new_group_id, _num_threads);
-        node->right = build_tree(right_vecs, depth + 1, new_group_id, _num_threads);
+        // node->left = build_tree(left_vecs, depth + 1, new_group_id, _num_threads);
+        // node->right = build_tree(right_vecs, depth + 1, new_group_id, _num_threads);
 
-        // std::future<std::shared_ptr<RPTreeNode>> left_future = std::async(std::launch::async, &RPTree::build_tree, this, left_vecs, depth + 1, std::ref(new_group_id), _num_threads);
-        // std::future<std::shared_ptr<RPTreeNode>> right_future = std::async(std::launch::async, &RPTree::build_tree, this, right_vecs, depth + 1, std::ref(new_group_id), _num_threads);
-        //
-        // node->left = left_future.get();
-        // node->right = right_future.get();
+        if (depth <= _num_threads / 2) {
+            std::future<std::shared_ptr<RPTreeNode>> left_future = std::async(std::launch::async, &RPTree::build_tree, this, left_vecs, depth + 1, std::ref(new_group_id), _num_threads);
+            std::future<std::shared_ptr<RPTreeNode>> right_future = std::async(std::launch::async, &RPTree::build_tree, this, right_vecs, depth + 1, std::ref(new_group_id), _num_threads);
+
+            node->left = left_future.get();
+            node->right = right_future.get();
+        } else {
+            node->left = build_tree(left_vecs, depth + 1, new_group_id, _num_threads);
+            node->right = build_tree(right_vecs, depth + 1, new_group_id, _num_threads);
+        }
+
 
         return node;
     }
@@ -233,7 +256,7 @@ namespace ANNS {
 
         if (!node->left && !node->right) {
             // std::cout<<"SEARCH: Depth: "<<node->depth<<" group id: "<<node->group_id<<" vecs size: "<<node->group_size<<std::endl;
-            for (auto& pt : _points[node->group_id]) {
+            for (auto& pt : _points_in_node[node->group_id]) {
                 float dist = _distance_handler->compute(_base_storage->get_vector(pt), _query_storage->get_vector(query_vec), _dim);
                 search_queue.insert(pt, dist);
             }
@@ -259,5 +282,94 @@ namespace ANNS {
         traverse_tree(node->right);
     }
 
+    // sampleing in all nodes, put all sample data into a continuous memory block
+    void RPTree::sampling(double rate) {
+        std::vector<std::vector<IdxType>> sampled_data;
+        rate = std::min(rate, 1.0);
+        sampled_data.resize(_num_groups);
+        for (IdxType i = 0; i < _num_groups; ++i) {
+            sample_slice(_points_in_node[i], sampled_data[i], rate);
+            _num_samples += sampled_data[i].size();
+        }
+
+        _new_to_old_vec_ids.resize(_num_samples);
+        // _sample_vecs = static_cast<float*>(std::aligned_alloc(32, sizeof(float) * _num_samples * _dim));
+        _sample_vecs = new float[_num_samples * _dim];
+        IdxType cur = 0;
+        for (IdxType i = 0; i < _num_groups; ++i) {
+            for (IdxType j : sampled_data[i]) {
+                std::memcpy(_sample_vecs + cur * _dim, _base_storage->get_vector(j), sizeof(float) * _dim);
+                _new_to_old_vec_ids[cur] = j;
+                cur++;
+            }
+        }
+    }
+
+    // sampling in a single rp-tree leaf node
+    void RPTree::sample_slice(const std::vector<IdxType> &points, std::vector<IdxType> &sampled_data, double rate) {
+        rate = std::min(rate, 1.0);
+
+        std::random_device rd;
+        size_t x = rd();
+        std::mt19937 generator((uint32_t)x);
+        std::uniform_real_distribution<float> distribution(0, 1);
+
+        for (auto& idx : points) {
+            float rnd_val = distribution(generator);
+            if (rnd_val < rate) {
+                sampled_data.emplace_back(idx);
+            }
+        }
+    }
+
+    IdxType RPTree::kmean_cluster(IdxType num_centers, IdxType max_reps) {
+        _closest_docs.resize(num_centers);
+        _closest_center.resize(_num_samples);
+
+        _pivot_data = new float[num_centers * _dim];
+        kmeanspp_selecting_pivots(_sample_vecs, _num_samples, _dim, _pivot_data, num_centers);
+        float residual = run_lloyds(_sample_vecs, _num_samples, _dim, _pivot_data, num_centers, max_reps, _closest_docs, _closest_center);
+
+
+        // int num_parts = 10;
+        // int max_k_means_reps = 10;
+        // IdxType num_points = _base_storage->get_num_points();
+        // IdxType dim = _base_storage->get_dim();
+        //
+        // char *data = _base_storage->get_vector(0);
+        // float *vecs = reinterpret_cast<float *>(data);
+        // float *pivot_data = new float[num_parts * dim];
+        // std::vector<std::vector<IdxType>> closest_docs;
+        // closest_docs.resize(num_parts);
+        // std::vector<IdxType> closest_center;
+        //
+        // double rate = 1;
+        // float *sample_vecs = nullptr;
+        // IdxType num_samples = 0;
+        // IdxType max_num_samples = num_points * rate;
+        // sample_vecs = new float[max_num_samples * dim];
+        //
+        // auto start_time = std::chrono::high_resolution_clock::now();
+        // kmeans_sampling(vecs, num_points, dim, rate, sample_vecs, num_samples);
+        // std::cout << "Sampling time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
+        //
+        // closest_center.resize(num_samples);
+        // start_time = std::chrono::high_resolution_clock::now();
+        // kmeanspp_selecting_pivots(sample_vecs, num_samples, dim, pivot_data, num_parts);
+        // auto residual = run_lloyds(sample_vecs, num_samples, dim, pivot_data, num_parts, max_k_means_reps, closest_docs, closest_center);
+        //
+        // std::cout << "K-means time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
+        // std::cout<< "Residual: " << residual << std::endl;
+        //
+        //
+        // delete[] pivot_data;
+        // delete[] sample_vecs;
+
+
+
+        // std::cout<< "Residual after kmeans: "<< residual <<std::endl;
+
+        return num_centers;
+    }
 
 }

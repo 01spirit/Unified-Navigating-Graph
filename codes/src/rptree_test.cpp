@@ -185,6 +185,56 @@ namespace ANNS {
         std::cout << "Search time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << "ms" << std::endl;
 
     }
+
+    TEST_F(RPTreeTest, SamplingAndClustering) {
+
+        // 创建并启动后台线程来监控CPU使用率
+        // std::thread cpu_monitor_thread(monitor_cpu_usage);
+
+        std::string data_type = "float";
+        std::string dist_fn = "L2";
+        std::string base_bin_file = "../../data/sift/sift_base.bin";
+        std::string base_label_file = "../../data/sift/sift_base_12_labels_zipf.txt";
+
+        // load base data
+        std::shared_ptr<ANNS::IStorage> base_storage = ANNS::create_storage(data_type);
+        base_storage->load_from_file(base_bin_file, base_label_file);
+
+        // preparation
+        auto start_time = std::chrono::high_resolution_clock::now();
+        std::shared_ptr<ANNS::DistanceHandler> distance_handler = ANNS::get_distance_handler(data_type, dist_fn);
+
+        IdxType max_node_size = 1024;
+        IdxType num_threads = 4;
+
+        start_time = std::chrono::high_resolution_clock::now();
+        std::shared_ptr<RPTree> rp_tree = std::make_shared<RPTree>(base_storage, distance_handler, max_node_size);
+        rp_tree->build(num_threads);
+        std::cout << "Building tree time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
+
+
+        double rate = 0.1;
+        IdxType num_centers = 10;
+        IdxType max_reps = 10;
+
+        start_time = std::chrono::high_resolution_clock::now();
+        rp_tree->sampling(rate);
+        std::cout << "Sampling time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
+
+        start_time = std::chrono::high_resolution_clock::now();
+        rp_tree->kmean_cluster(num_centers, max_reps);
+        std::cout << "Clustering time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
+
+        // 通知后台线程停止运行
+        // {
+        //     std::lock_guard<std::mutex> lock(mtx);
+        //     running = false;
+        // }
+        // cv.notify_all();
+
+        // 等待后台线程结束
+        // cpu_monitor_thread.join();
+    }
 }
 
 int main(int argc, char **argv) {
