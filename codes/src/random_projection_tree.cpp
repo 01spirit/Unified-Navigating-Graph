@@ -53,7 +53,7 @@ namespace ANNS {
         // std::vector<float> dir(dim);
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_real_distribution<float> dis(0, RAND_MAX);
+        std::uniform_real_distribution<float> dis(0, float(RAND_MAX));
 
         float norm = 0.0f;
 
@@ -62,14 +62,14 @@ namespace ANNS {
             // float x = dis(gen) / RAND_MAX * 2.0f - 1.0f;
             // __m256 rand_vec = _mm256_set1_ps(x);
             __m256 rand_vec = _mm256_set_ps(
-                dis(gen) / RAND_MAX * 2 - 1,
-                dis(gen) / RAND_MAX * 2 - 1,
-                dis(gen) / RAND_MAX * 2 - 1,
-                dis(gen) / RAND_MAX * 2 - 1,
-                 dis(gen) / RAND_MAX * 2 - 1,
-                 dis(gen) / RAND_MAX * 2 - 1,
-                dis(gen) / RAND_MAX * 2 - 1,
-                dis(gen) / RAND_MAX * 2 - 1
+                dis(gen) / float(RAND_MAX) * 2 - 1,
+                dis(gen) / float(RAND_MAX) * 2 - 1,
+                dis(gen) / float(RAND_MAX) * 2 - 1,
+                dis(gen) / float(RAND_MAX) * 2 - 1,
+                 dis(gen) / float(RAND_MAX) * 2 - 1,
+                 dis(gen) / float(RAND_MAX) * 2 - 1,
+                dis(gen) / float(RAND_MAX) * 2 - 1,
+                dis(gen) / float(RAND_MAX) * 2 - 1
             );
 
             _mm256_storeu_ps(&dir[i], rand_vec);
@@ -181,10 +181,10 @@ namespace ANNS {
             projections[i] = std::make_pair(vecs[i], p);
         }
 
-        std::sort(projections.begin(), projections.end(),
-            [](const std::pair<IdxType, float>& a, const std::pair<IdxType, float>& b) {
-                return a.second < b.second;
-            });
+        // std::sort(projections.begin(), projections.end(),
+        //     [](const std::pair<IdxType, float>& a, const std::pair<IdxType, float>& b) {
+        //         return a.second < b.second;
+        //     });
 
         int mid = projections.size() / 2;
         float median = projections[mid].second;
@@ -207,10 +207,9 @@ namespace ANNS {
         // node->left = build_tree(left_vecs, depth + 1, new_group_id, _num_threads);
         // node->right = build_tree(right_vecs, depth + 1, new_group_id, _num_threads);
 
-        if (depth <= _num_threads / 2) {
+        if (depth <= 1) {
             std::future<std::shared_ptr<RPTreeNode>> left_future = std::async(std::launch::async, &RPTree::build_tree, this, left_vecs, depth + 1, std::ref(new_group_id), _num_threads);
             std::future<std::shared_ptr<RPTreeNode>> right_future = std::async(std::launch::async, &RPTree::build_tree, this, right_vecs, depth + 1, std::ref(new_group_id), _num_threads);
-
             node->left = left_future.get();
             node->right = right_future.get();
         } else {

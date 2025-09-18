@@ -4,6 +4,7 @@
 #include <statgrab.h>
 #include <thread>
 #include <gtest/gtest.h>
+#include <condition_variable>
 
 namespace ANNS {
     class KmeansTest : public ::testing::Test {
@@ -39,8 +40,11 @@ namespace ANNS {
     }
 
     TEST_F(KmeansTest, TEST1) {
+        int num_threads = 32; // 设置线程数为
+        // 设置后续并行区域中使用的线程数
+        omp_set_num_threads(num_threads);
 
-        // std::thread cpu_monitor_thread(monitor_cpu_usage);
+        std::thread cpu_monitor_thread(monitor_cpu_usage);
 
         std::string data_type = "float";
         std::string dist_fn = "L2";
@@ -63,7 +67,7 @@ namespace ANNS {
         closest_docs.resize(num_parts);
         std::vector<IdxType> closest_center;
 
-        double rate = 0.05;
+        double rate = 1;
         float *sample_vecs = nullptr;
         IdxType num_samples = 0;
         IdxType max_num_samples = num_points * rate;
@@ -85,14 +89,14 @@ namespace ANNS {
         delete[] pivot_data;
         delete[] sample_vecs;
 
-        // {
-        //     std::lock_guard<std::mutex> lock(mtx);
-        //     running = false;
-        // }
-        // cv.notify_all();
-        //
-        // // 等待后台线程结束
-        // cpu_monitor_thread.join();
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            running = false;
+        }
+        cv.notify_all();
+
+        // 等待后台线程结束
+        cpu_monitor_thread.join();
     }
 
 }

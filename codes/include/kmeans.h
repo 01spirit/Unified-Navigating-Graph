@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
+#include <omp.h>
 #include <random>
 #include <queue>
 #include <sys/stat.h>

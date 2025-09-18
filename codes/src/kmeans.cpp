@@ -5,6 +5,9 @@
 #include <limits>
 #include <malloc.h>
 #include "kmeans.h"
+
+#include <mutex>
+#include <thread>
 #include <mkl/mkl.h>
 #include "utils.h"
 #include "distance.h"
@@ -273,7 +276,7 @@ namespace ANNS {
                                                          pts_norms_blk, pivs_norms_squared, closest_centers,
                                                          distance_matrix, k);
 
-            #pragma omp parallel for schedule(static, 1)
+            // #pragma omp parallel for schedule(static, 1)
             for (int64_t j = cur_blk * PAR_BLOCK_SIZE; j < std::min((int64_t)num_points, (int64_t)((cur_blk + 1) * PAR_BLOCK_SIZE)); j++)
             {
                 for (size_t l = 0; l < k; l++)
@@ -282,7 +285,7 @@ namespace ANNS {
                     closest_centers_ivf[j * k + l] = (uint32_t)this_center_id;
                     if (!inverted_index.empty())
                     {   // 把向量添加到对应聚类中心的倒排索引
-                        #pragma omp critical
+                        // #pragma omp critical
                         inverted_index[this_center_id].push_back(j);    // 在并行时，同一时间只能由一个线程执行
                     }
                 }

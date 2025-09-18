@@ -189,7 +189,7 @@ namespace ANNS {
     TEST_F(RPTreeTest, SamplingAndClustering) {
 
         // 创建并启动后台线程来监控CPU使用率
-        // std::thread cpu_monitor_thread(monitor_cpu_usage);
+        std::thread cpu_monitor_thread(monitor_cpu_usage);
 
         std::string data_type = "float";
         std::string dist_fn = "L2";
@@ -205,7 +205,7 @@ namespace ANNS {
         std::shared_ptr<ANNS::DistanceHandler> distance_handler = ANNS::get_distance_handler(data_type, dist_fn);
 
         IdxType max_node_size = 1024;
-        IdxType num_threads = 4;
+        IdxType num_threads = 32;
 
         start_time = std::chrono::high_resolution_clock::now();
         std::shared_ptr<RPTree> rp_tree = std::make_shared<RPTree>(base_storage, distance_handler, max_node_size);
@@ -213,7 +213,7 @@ namespace ANNS {
         std::cout << "Building tree time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
 
 
-        double rate = 0.1;
+        double rate = 1;
         IdxType num_centers = 10;
         IdxType max_reps = 10;
 
@@ -221,19 +221,21 @@ namespace ANNS {
         rp_tree->sampling(rate);
         std::cout << "Sampling time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
 
+        omp_set_num_threads(std::thread::hardware_concurrency());
+        // omp_set_num_threads(num_threads * 3 / 2);
         start_time = std::chrono::high_resolution_clock::now();
         rp_tree->kmean_cluster(num_centers, max_reps);
         std::cout << "Clustering time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
 
-        // 通知后台线程停止运行
-        // {
-        //     std::lock_guard<std::mutex> lock(mtx);
-        //     running = false;
-        // }
-        // cv.notify_all();
+        // // 通知后台线程停止运行
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            running = false;
+        }
+        cv.notify_all();
 
         // 等待后台线程结束
-        // cpu_monitor_thread.join();
+        cpu_monitor_thread.join();
     }
 }
 
