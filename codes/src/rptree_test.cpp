@@ -204,7 +204,7 @@ namespace ANNS {
         auto start_time = std::chrono::high_resolution_clock::now();
         std::shared_ptr<ANNS::DistanceHandler> distance_handler = ANNS::get_distance_handler(data_type, dist_fn);
 
-        IdxType max_node_size = 1000;
+        IdxType max_node_size = 100;
         IdxType num_threads = 32;
 
         start_time = std::chrono::high_resolution_clock::now();

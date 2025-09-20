@@ -146,6 +146,9 @@ namespace ANNS {
     }
 
     std::shared_ptr<RPTreeNode> RPTree::build_tree(const std::vector<IdxType>& vecs, IdxType depth, IdxType& new_group_id, IdxType num_threads) {
+        if (vecs.empty()) {
+            return nullptr;
+        }
         // std::cout<<"BUILD: Depth: "<<depth<<" group id: "<<new_group_id<<" vecs size: "<<vecs.size()<<std::endl;
         _num_threads = std::min(num_threads, std::thread::hardware_concurrency());
         omp_set_num_threads(_num_threads);
@@ -157,7 +160,6 @@ namespace ANNS {
             leaf->depth = depth;
             leaf->group_id = new_group_id;
             leaf->group_size = vsize;
-            // leaf->median_vec = new float[_dim];
             _mutex.lock();
             _points_in_node.resize(new_group_id+1);
             for (IdxType i = 0; i < vsize; i++) {
@@ -324,9 +326,17 @@ namespace ANNS {
     }
 
     void RPTree::cal_node_median() {
-        for (IdxType i = 0; i < _num_groups; ++i) {
+        _points_in_node.shrink_to_fit();
+        _vec_id_to_group_id.shrink_to_fit();
+        _leaf_nodes.shrink_to_fit();
+        _closest_center.shrink_to_fit();
+        _closest_docs.shrink_to_fit();
+
+        for (IdxType i = 1; i <= _num_groups; ++i) {
             auto node = _leaf_nodes[i];
             auto sum = new float[_dim];
+            node->median_vec = new float[_dim];
+            memset(sum, 0, sizeof(float) * _dim);
             for (IdxType j = 0; j < _points_in_node[i].size(); ++j) {
                 auto vec = reinterpret_cast<const float *>(_base_storage->get_vector(_points_in_node[i][j]));
                 for (IdxType k = 0; k < _dim; ++k) {
@@ -335,7 +345,9 @@ namespace ANNS {
             }
             for (IdxType k = 0; k < _dim; ++k) {
                 sum[k] /= static_cast<float>(_points_in_node[i].size());
+                // std::cout<<sum[k]<<" ";
             }
+            // std::cout<<std::endl;
             std::memcpy(node->median_vec, sum, _dim * sizeof(float));
             delete [] sum;
         }
@@ -343,12 +355,13 @@ namespace ANNS {
 
     void RPTree::alloc_node_to_cluster() {
         _cluster_to_nodes.resize(_num_centers);
-        for (IdxType i = 0; i < _num_groups; ++i) {
+        for (IdxType i = 1; i <= _num_groups; ++i) {
             auto node = _leaf_nodes[i];
             float min_dis = std::numeric_limits<float>::max();
             IdxType cluster_id = std::numeric_limits<IdxType>::max();
             for (IdxType j = 0; j < _num_centers; ++j) {
                 auto dis = calc_distance(node->median_vec, _pivot_data + j * _dim, _dim);
+                // std::cout<<dis<<std::endl;
                 if (dis < min_dis) {
                     min_dis = dis;
                     cluster_id = j;
@@ -356,6 +369,7 @@ namespace ANNS {
             }
             _cluster_to_nodes[cluster_id].emplace_back(node);
         }
+        std::cout<< "Alloc node to cluster finished." << std::endl;
     }
 
     IdxType RPTree::kmean_cluster(IdxType num_centers, IdxType max_reps) {
@@ -366,43 +380,6 @@ namespace ANNS {
         _pivot_data = new float[num_centers * _dim];
         kmeanspp_selecting_pivots(_sample_vecs, _num_samples, _dim, _pivot_data, num_centers);
         float residual = run_lloyds(_sample_vecs, _num_samples, _dim, _pivot_data, num_centers, max_reps, _closest_docs, _closest_center);
-
-
-        // int num_parts = 10;
-        // int max_k_means_reps = 10;
-        // IdxType num_points = _base_storage->get_num_points();
-        // IdxType dim = _base_storage->get_dim();
-        //
-        // char *data = _base_storage->get_vector(0);
-        // float *vecs = reinterpret_cast<float *>(data);
-        // float *pivot_data = new float[num_parts * dim];
-        // std::vector<std::vector<IdxType>> closest_docs;
-        // closest_docs.resize(num_parts);
-        // std::vector<IdxType> closest_center;
-        //
-        // double rate = 1;
-        // float *sample_vecs = nullptr;
-        // IdxType num_samples = 0;
-        // IdxType max_num_samples = num_points * rate;
-        // sample_vecs = new float[max_num_samples * dim];
-        //
-        // auto start_time = std::chrono::high_resolution_clock::now();
-        // kmeans_sampling(vecs, num_points, dim, rate, sample_vecs, num_samples);
-        // std::cout << "Sampling time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
-        //
-        // closest_center.resize(num_samples);
-        // start_time = std::chrono::high_resolution_clock::now();
-        // kmeanspp_selecting_pivots(sample_vecs, num_samples, dim, pivot_data, num_parts);
-        // auto residual = run_lloyds(sample_vecs, num_samples, dim, pivot_data, num_parts, max_k_means_reps, closest_docs, closest_center);
-        //
-        // std::cout << "K-means time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
-        // std::cout<< "Residual: " << residual << std::endl;
-        //
-        //
-        // delete[] pivot_data;
-        // delete[] sample_vecs;
-
-
 
         // std::cout<< "Residual after kmeans: "<< residual <<std::endl;
 
