@@ -425,7 +425,7 @@ namespace ANNS {
                 (residual < std::numeric_limits<float>::epsilon()))
             {
                 std::cout << "Residuals unchanged: " << old_residual << " becomes " << residual
-                              << ". Early termination." << std::endl;
+                              << ". Early termination." << "After " << i << " iterations." << std::endl;
                 break;
             }
         }

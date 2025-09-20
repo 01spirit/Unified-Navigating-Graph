@@ -55,8 +55,8 @@ namespace ANNS {
         std::shared_ptr<ANNS::IStorage> base_storage = ANNS::create_storage(data_type);
         base_storage->load_from_file(base_bin_file, base_label_file);
 
-        int num_parts = 10;
-        int max_k_means_reps = 10;
+        int num_parts = 30;
+        int max_k_means_reps = 100;
         IdxType num_points = base_storage->get_num_points();
         IdxType dim = base_storage->get_dim();
 

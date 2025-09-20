@@ -204,7 +204,7 @@ namespace ANNS {
         auto start_time = std::chrono::high_resolution_clock::now();
         std::shared_ptr<ANNS::DistanceHandler> distance_handler = ANNS::get_distance_handler(data_type, dist_fn);
 
-        IdxType max_node_size = 1024;
+        IdxType max_node_size = 100;
         IdxType num_threads = 32;
 
         start_time = std::chrono::high_resolution_clock::now();
@@ -214,15 +214,15 @@ namespace ANNS {
 
 
         double rate = 1;
-        IdxType num_centers = 10;
-        IdxType max_reps = 10;
+        IdxType num_centers = 30;
+        IdxType max_reps = 100;
 
         start_time = std::chrono::high_resolution_clock::now();
         rp_tree->sampling(rate);
         std::cout << "Sampling time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
 
-        omp_set_num_threads(std::thread::hardware_concurrency());
-        // omp_set_num_threads(num_threads * 3 / 2);
+        // omp_set_num_threads(std::thread::hardware_concurrency());
+        omp_set_num_threads(32);
         start_time = std::chrono::high_resolution_clock::now();
         rp_tree->kmean_cluster(num_centers, max_reps);
         std::cout << "Clustering time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
