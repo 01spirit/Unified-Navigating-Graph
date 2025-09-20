@@ -14,6 +14,7 @@ namespace ANNS {
 
     struct RPTreeNode {
         float* randomDirection;    // 随机投影方向
+        float* median_vec;      // 叶子节点中的向量均值
         float medianProj;      // 节点中数据点在随机投影方向上的中位数
         std::shared_ptr<RPTreeNode> left;
         std::shared_ptr<RPTreeNode> right;
@@ -22,10 +23,11 @@ namespace ANNS {
         IdxType group_id;   // 叶子节点由从 1 递增的 id 标识，其他节点的 id 是 0
         IdxType group_size; // 节点中向量数量
 
-        RPTreeNode() : randomDirection(nullptr), medianProj(0), left(nullptr), right(nullptr), depth(0), group_id(0), group_size(0) {};
+        RPTreeNode() : randomDirection(nullptr), median_vec(nullptr), medianProj(0), left(nullptr), right(nullptr), depth(0), group_id(0), group_size(0) {};
 
         ~RPTreeNode() {
             delete [] randomDirection;
+            delete [] median_vec;
         };
     };
 
@@ -40,6 +42,8 @@ namespace ANNS {
         void sampling(double rate);
         void sample_slice(const std::vector<IdxType>& points, std::vector<IdxType> &sampled_data, double rate);
 
+        void cal_node_median();
+        void alloc_node_to_cluster();
         IdxType kmean_cluster(IdxType num_centers, IdxType max_reps);
 
         std::shared_ptr<RPTreeNode> get_root() { return _root; }
@@ -61,12 +65,14 @@ namespace ANNS {
         std::vector<IdxType> _vec_id_to_group_id;  // 每个向量所属的叶子节点
         std::vector<std::shared_ptr<RPTreeNode>> _leaf_nodes;   // 所有叶子节点，用 group id 索引
 
+        IdxType _num_centers;
         IdxType _num_samples;
         float* _sample_vecs;
         float* _pivot_data;
         std::vector<IdxType> _new_to_old_vec_ids;   // 采样数据的连续id对应原始数据id
         std::vector<std::vector<IdxType>> _closest_docs;    // 每个簇中的数据点
         std::vector<IdxType> _closest_center;   // 每个点所属的聚类中心
+        std::vector<std::vector<std::shared_ptr<RPTreeNode>>> _cluster_to_nodes;
 
         std::shared_ptr<RPTreeNode> build_tree(const std::vector<IdxType>& vecs, IdxType depth, IdxType& new_group_id, IdxType num_threads = 1);
         IdxType search_tree(const std::shared_ptr<RPTreeNode>& node, SearchQueue& search_queue, IdxType query_vec, IdxType K, IdxType& num_cmps);

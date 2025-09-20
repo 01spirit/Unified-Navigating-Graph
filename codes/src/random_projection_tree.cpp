@@ -23,6 +23,7 @@ namespace ANNS {
         _num_queries = 0;
         _num_groups = 0;
         _num_samples = 0;
+        _num_centers = 0;
 
         _sample_vecs = nullptr;
         _pivot_data = nullptr;
@@ -156,6 +157,7 @@ namespace ANNS {
             leaf->depth = depth;
             leaf->group_id = new_group_id;
             leaf->group_size = vsize;
+            // leaf->median_vec = new float[_dim];
             _mutex.lock();
             _points_in_node.resize(new_group_id+1);
             for (IdxType i = 0; i < vsize; i++) {
@@ -321,7 +323,43 @@ namespace ANNS {
         }
     }
 
+    void RPTree::cal_node_median() {
+        for (IdxType i = 0; i < _num_groups; ++i) {
+            auto node = _leaf_nodes[i];
+            auto sum = new float[_dim];
+            for (IdxType j = 0; j < _points_in_node[i].size(); ++j) {
+                auto vec = reinterpret_cast<const float *>(_base_storage->get_vector(_points_in_node[i][j]));
+                for (IdxType k = 0; k < _dim; ++k) {
+                    sum[k] += vec[k];
+                }
+            }
+            for (IdxType k = 0; k < _dim; ++k) {
+                sum[k] /= static_cast<float>(_points_in_node[i].size());
+            }
+            std::memcpy(node->median_vec, sum, _dim * sizeof(float));
+            delete [] sum;
+        }
+    }
+
+    void RPTree::alloc_node_to_cluster() {
+        _cluster_to_nodes.resize(_num_centers);
+        for (IdxType i = 0; i < _num_groups; ++i) {
+            auto node = _leaf_nodes[i];
+            float min_dis = std::numeric_limits<float>::max();
+            IdxType cluster_id = std::numeric_limits<IdxType>::max();
+            for (IdxType j = 0; j < _num_centers; ++j) {
+                auto dis = calc_distance(node->median_vec, _pivot_data + j * _dim, _dim);
+                if (dis < min_dis) {
+                    min_dis = dis;
+                    cluster_id = j;
+                }
+            }
+            _cluster_to_nodes[cluster_id].emplace_back(node);
+        }
+    }
+
     IdxType RPTree::kmean_cluster(IdxType num_centers, IdxType max_reps) {
+        _num_centers = num_centers;
         _closest_docs.resize(num_centers);
         _closest_center.resize(_num_samples);
 

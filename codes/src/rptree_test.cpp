@@ -204,7 +204,7 @@ namespace ANNS {
         auto start_time = std::chrono::high_resolution_clock::now();
         std::shared_ptr<ANNS::DistanceHandler> distance_handler = ANNS::get_distance_handler(data_type, dist_fn);
 
-        IdxType max_node_size = 100;
+        IdxType max_node_size = 1000;
         IdxType num_threads = 32;
 
         start_time = std::chrono::high_resolution_clock::now();
@@ -226,6 +226,13 @@ namespace ANNS {
         start_time = std::chrono::high_resolution_clock::now();
         rp_tree->kmean_cluster(num_centers, max_reps);
         std::cout << "Clustering time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
+
+
+        start_time = std::chrono::high_resolution_clock::now();
+        rp_tree->cal_node_median();
+        rp_tree->alloc_node_to_cluster();
+        std::cout << "Alloc node time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() << " ms" << std::endl;
+
 
         // // 通知后台线程停止运行
         {
